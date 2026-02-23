@@ -61,3 +61,17 @@ class Spring:
         # Transformation ins globale System (Kronecker-Produkt)
         # ...ähnlich, wie in solver.py: Ko = np.kron(K, O)
         return np.kron(K_loc, O)
+    
+    def get_strain_energy(self):
+        """
+        Berechnet die elementare Dehnungsenergie der Feder.
+        Formel: 0.5 * u^T * K * u
+        """
+        # Globale Steifigkeitsmatrix für dieses Element abrufen
+        K_elem = self.K_global()
+        
+        # Verschiebungsvektor für dieses Element (4 Einträge) aus den Knoten holen
+        u_vec = np.concatenate((self.node_i.displacement, self.node_j.displacement))
+        
+        # Energie berechnen und zurückgeben
+        return 0.5 * (u_vec.T @ K_elem @ u_vec)

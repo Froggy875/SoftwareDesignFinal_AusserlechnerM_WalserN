@@ -3,6 +3,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 from elements import Node, Spring
 from structureBuilder import StructureBuilder
+from optimizer import TopologyOptimizer
 
 
 # --BEISPIEL VERWENDUNG--
@@ -44,7 +45,9 @@ structure.get_node(idx_middle_left-1).force = force_vector
 structure.get_node(idx_middle_right).force = force_vector
 structure.get_node(idx_middle_right+1).force = force_vector
 
-
+#OPTIMIERUNG
+optimizer = TopologyOptimizer(structure)
+optimizer.optimize(target_mass_ratio=0.5, max_iterations=100)
 
 # LÖSEN UND VISUALISIEREN
 
@@ -63,6 +66,8 @@ for edge in structure.get_edges():
     pos_i = spring.node_i.pos
     pos_j = spring.node_j.pos
     ax.plot([pos_i[0], pos_j[0]], [pos_i[1], pos_j[1]], 'k--', linewidth=1, alpha=0.3)
+
+"""
 
 # VERFORMTE Struktur zeichen
 for edge in structure.get_edges():
@@ -85,6 +90,8 @@ for node_id in structure.get_nodes():
     elif np.linalg.norm(node.force) > 0: color = 'green'
         
     ax.plot(new_pos[0], new_pos[1], marker='o', color=color, markersize=8)
+
+"""    
         
 # plot optionen
 ax.set_xlabel('X')
