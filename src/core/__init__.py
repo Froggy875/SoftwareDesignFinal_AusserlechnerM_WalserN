@@ -1,8 +1,8 @@
 import numpy as np
 import matplotlib.pyplot as plt
 from structureBuilder import StructureBuilder
-from optimizer import ESO_HardKill_Optimizer, ESO_SoftKill_Optimizer
-
+from optimizer import ESO_HardKill_Optimizer, ESO_SoftKill_Optimizer, SIMP_Optimizer
+from matplotlib.collections import LineCollection # performanter ...fix für langsamen dynamischen Plot
 
 # --BEISPIEL VERWENDUNG--
 
@@ -46,78 +46,103 @@ structure.get_node(idx_middle_right+1).force = force_vector
 # OPTIMIERUNG
 
 # Provisorium zum Optimizer auswählen
-optimizer_type = "SOFT_KILL"
 
-if optimizer_type == "HARD_KILL":
+print("Starte Optimierung...")
+optimizer_type = "SIMP"
+
+if optimizer_type == "SIMP":
+    opt = SIMP_Optimizer(structure)
+    opt_generator = opt.optimize(target_mass_ratio=0.4, max_penalty=3.0, max_iterations=40, r_min=1.5)
+
+elif optimizer_type == "HARD_KILL":
     print("Initialisiere Hard-Kill Optimierer...")
     opt = ESO_HardKill_Optimizer(structure)
-    opt.optimize(target_mass_ratio=0.4, max_iterations=100)
+    opt_generator = opt.optimize(target_mass_ratio=0.4, max_iterations=100)
 
 elif optimizer_type == "SOFT_KILL":
     print("Initialisiere Soft-Kill Optimierer...")
     opt = ESO_SoftKill_Optimizer(structure)
-    opt.optimize(target_mass_ratio=0.4, max_iterations=100, r_min=1.5)
+    opt_generator = opt.optimize(target_mass_ratio=0.4, max_iterations=100, r_min=1.5)
+
 
 print(f"Optimierung ({optimizer_type}) abgeschlossen.")
 
 
 
-# VISUALISIEREN
+# LIVE VISUALISIEREN
+# (...performanteres Provisorium als vorher mit line collection)
 
-# ...Optimierer abhängiges provisorium
 
+# Variable zum testen, ob yield Logik funktioniert
+user_pressed_stopped = False 
+
+plt.ion() 
 fig, ax = plt.subplots(figsize=(10, 5))
-visible_elements = 0
 
-for u, v in list(structure.get_edges()):
-    edge_key = tuple(sorted((u, v)))
+# "ui simulation für stop button..."
+for iteration in opt_generator:
     
-    # Standardwert 1.0 für den Hard-Kill
-    rho = 1.0 
-    
-    if optimizer_type == "SOFT_KILL":
-        # Bei Soft-Kill hängt die Feder vom schwächsten anliegenden Knoten ab
-        rho = min(opt.node_states.get(u, 1.0), opt.node_states.get(v, 1.0))
+    # test, dass bei bestimmter iteration stop gedrückt wurde
+    if iteration == 15:
+        user_pressed_stopped = True
+        
+    if user_pressed_stopped:
+        # Speicherlogik dummy
+        print(f"\n---> Stand gespeichert (Iteration {iteration}) <---")
+        break
 
-    # Filter
-    if rho < 0.1:
-        continue
+    ax.clear()
+    visible_elements = 0
     
-    visible_elements += 1
+    segments = []
+    linewidths = []
+    alphas = []
     
-    node_i = structure.get_node(u)
-    node_j = structure.get_node(v)
-    
-    p1 = node_i.pos
-    p2 = node_j.pos
-    
-    # Transparenz (alpha) und Dicke angepasst plotten
-    ax.plot([p1[0], p2[0]], [p1[1], p2[1]], 
-            color='black', 
-            linewidth=2.5 * rho, 
-            solid_capstyle='round',
-            alpha=rho if optimizer_type != "HARD_KILL" else 1.0)
+    # Daten sammeln statt direkt zu plotten
+    for u, v in list(structure.get_edges()):
+        edge_key = tuple(sorted((u, v)))
+        rho = 1.0 
+        
+        if optimizer_type == "SIMP":
+            spring = opt.structure.get_spring(*edge_key) 
+            rho = spring.density
+        elif optimizer_type in ["SOFT_KILL", "BESO"]:
+            rho = min(opt.node_states.get(u, 1.0), opt.node_states.get(v, 1.0))
 
-# Lager und Kräfte zeichnen
-for node_id in list(structure.get_nodes()):
-    node = structure.get_node(node_id)
+        if rho < 0.1:
+            continue
+            
+        visible_elements += 1
+        
+        p1 = structure.get_node(u).pos
+        p2 = structure.get_node(v).pos
+        
+        segments.append([p1, p2])
+        linewidths.append(2.5 * rho)
+        alphas.append(rho if optimizer_type != "HARD_KILL" else 1.0)
+
+    colors = np.zeros((len(segments), 4))
+    colors[:, 3] = alphas 
     
-    if any(node.fixed):
-        ax.plot(node.pos[0], node.pos[1], 'r^', markersize=8, label='Festlager')
-    elif np.linalg.norm(node.force) > 0:
-        ax.plot(node.pos[0], node.pos[1], 'gv', markersize=8, label='Last')
+    if segments:
+        lc = LineCollection(segments, colors=colors, linewidths=linewidths, capstyle='round')
+        ax.add_collection(lc)
 
-# Achsen formatieren
-ax.set_aspect('equal')
-ax.invert_yaxis()
-ax.set_title(f"Topologie: {optimizer_type} (Sichtbare Elemente: {visible_elements})")
-ax.set_xlabel("x")
-ax.set_ylabel("y")
+    for node_id in list(structure.get_nodes()):
+        node = structure.get_node(node_id)
+        if any(node.fixed):
+            ax.plot(node.pos[0], node.pos[1], 'r^', markersize=8)
+        elif np.linalg.norm(node.force) > 0:
+            ax.plot(node.pos[0], node.pos[1], 'gv', markersize=8)
 
-# Plot settings
-handles, labels = plt.gca().get_legend_handles_labels()
-by_label = dict(zip(labels, handles))
-plt.legend(by_label.values(), by_label.keys())
+    ax.set_aspect('equal')
+    ax.invert_yaxis()
+    ax.set_title(f"Topologie: {optimizer_type} | Iteration: {iteration+1} (Elemente: {visible_elements})")
+    ax.set_xlabel("x")
+    ax.set_ylabel("y")
 
-plt.tight_layout()
+    fig.canvas.flush_events() 
+    plt.pause(0.001) 
+
+plt.ioff()
 plt.show()

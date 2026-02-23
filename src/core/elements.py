@@ -19,6 +19,7 @@ class Spring:
         self.node_i = node_i
         self.node_j = node_j
         self.density = 1.0 # für SoftKillOptimizer
+        self.penalty = 1.0  # für SIMP_Optimizer
         
         # Berechnung von k (Folie 24)
         dist = np.linalg.norm(node_j.pos - node_i.pos)
@@ -43,8 +44,8 @@ class Spring:
         Elementsteifigkeitsmatrix im lokalen System (1D).
         Ergibt eine 2x2 Matrix für die Federsteifigkeit k.
         """
-        # für Softkill: Dichte beeinflusst Steifigkeit: k_eff = k0 * rho
-        k_eff = self.k * (max(self.density, 1e-9))
+        # für SIMP und Softkill: k_eff = k0 * (rho^p)
+        k_eff = self.k * (max(self.density, 1e-9) ** self.penalty)
 
         return k_eff * np.array([[1.0, -1.0], [-1.0, 1.0]])
 
