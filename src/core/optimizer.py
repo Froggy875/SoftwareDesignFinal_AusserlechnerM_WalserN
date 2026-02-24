@@ -1,6 +1,6 @@
 import numpy as np
 import networkx as nx
-from structure import Structure
+from core.structure import Structure
 
 class BaseTopologyOptimizer:
     """
@@ -148,6 +148,22 @@ class ESO_HardKill_Optimizer(ESO_BaseOptimizer):
     Topologieoptimierer, der Massepunkte (Knoten) basierend auf ihrer 
     Verformungsenergie entfernt.
     """
+    #neumathias
+    def __init__(self, structure, initial_state=None):
+        # 1. Basisklasse aufrufen (erstellt self.structure, self.initial_nodes_count etc.)
+        super().__init__(structure) 
+        
+        # 2. Leeres Set für die entfernten Knoten vorbereiten
+        self.removed_nodes = set()
+        
+        # 3. Savegame laden, falls eins übergeben wurde
+        if initial_state is not None:
+            self.current_iteration = initial_state.get("iteration", 0)
+            self.removed_nodes = set(initial_state.get("removed_nodes", []))
+            
+            # Löcher direkt in die frisch geladene Struktur stanzen
+            for node_id in self.removed_nodes:
+                self.structure.remove_node(node_id)
 
     def optimize(self, target_mass_ratio=0.5, max_iterations=100):
         print(f"Start Optimierung (Knoten-Entfernung). Ziel-Massenverhältnis: {target_mass_ratio*100:.1f}%")
@@ -198,6 +214,8 @@ class ESO_HardKill_Optimizer(ESO_BaseOptimizer):
                     
                 # Wenn alle Tests bestanden sind: Knoten sicher entfernen
                 self.structure.remove_node(node_id)
+                #neumathias
+                self.removed_nodes.add(node_id)
                 nodes_removed_this_iter += 1
                 
             new_mass = self.structure.number_of_nodes()
@@ -205,7 +223,12 @@ class ESO_HardKill_Optimizer(ESO_BaseOptimizer):
                   f"Verbleibend: {new_mass}/{self.initial_nodes_count} "
                   f"({(new_mass/self.initial_nodes_count)*100:.1f}%)")
             
-            yield iteration
+            '''neu'''
+            yield {
+                "iteration": iteration,
+                "removed_nodes": list(self.removed_nodes)
+            }
+            #yield iteration -> alt
 
             if nodes_removed_this_iter == 0:
                 print("Abbruch: Keine weiteren Knoten können entfernt werden, "
@@ -220,10 +243,23 @@ class ESO_SoftKill_Optimizer(ESO_BaseOptimizer):
     Konten werden nicht gelöscht, sondern über Density Attribut abgeschwächt.
     Filter zum glätten der Knotenenergien -> etwas gleichmäßigere Strukturen
     """
-    def __init__(self, structure):
+    def __init__(self, structure, initial_state=None):
         super().__init__(structure)
         self.soft_killed_nodes = set()
         self.node_states = {node_id: 1.0 for node_id in self.structure.get_nodes()}
+
+        #neu mathias
+        self.current_iteration = 0
+        if initial_state is not None:
+            self.current_iteration = initial_state.get("iteration", 0)
+            self.soft_killed_nodes = set(initial_state.get("soft_killed_nodes", []))
+            
+            # JSON castet Int-Keys im Dict oft zu Strings. Sicherstellen, dass es Integers bleiben:
+            self.node_states = {int(k): float(v) for k, v in initial_state.get("node_states", {}).items()}
+            
+            # Wenn Knoten schon inaktiv sind, Federn direkt anpassen (mit Standard-Faktor 1e-4)
+            if self.soft_killed_nodes:
+                self._update_spring_stiffnesses(1e-4)
 
     def optimize(self, target_mass_ratio=0.5, max_iterations=100, soft_kill_factor=1e-4, r_min=1.5):
         print(f"Start Optimierung (Softkill). Ziel-Massenverhältnis: {target_mass_ratio*100:.1f}%")
@@ -235,7 +271,9 @@ class ESO_SoftKill_Optimizer(ESO_BaseOptimizer):
         print(f"Berechne Filter-Nachbarschaften für ESO (r_min={r_min})...")
         self._prepare_filter(r_min)
 
-        for iteration in range(max_iterations):
+        for iteration in range(self.current_iteration, max_iterations):
+            #neumathias
+            self.current_iteration = iteration
             # Aktuelle "Masse" = Anzahl der noch nicht abgeschwächten Knoten
             current_active_mass = self.initial_nodes_count - len(self.soft_killed_nodes)
             
@@ -283,7 +321,13 @@ class ESO_SoftKill_Optimizer(ESO_BaseOptimizer):
             # Steifigkeiten basierend auf aktiven/inaktiven Knoten updaten
             self._update_spring_stiffnesses(soft_kill_factor)
             
-            yield iteration
+            #yield iteration
+            #neumathias
+            yield {
+                "iteration": iteration,
+                "soft_killed_nodes": list(self.soft_killed_nodes),
+                "node_states": self.node_states
+            }
 
             new_mass = self.initial_nodes_count - len(self.soft_killed_nodes)
             print(f"Iter {iteration+1}: {nodes_removed_this_iter} Knoten abgeschwächt. "
@@ -347,6 +391,26 @@ class SIMP_Optimizer(BaseTopologyOptimizer):
     Steifigkeit der Ferdern kontinuierlich variiert.
     -> Minimierung der Nachgiebigkeit bei gegebenem Zielvolumen.
     """
+    #neumathias
+    def __init__(self, structure, initial_state=None):
+        super().__init__(structure)
+        self.current_iteration = 0
+        self.current_penalty = 1.0
+        self.old_densities = {}
+
+        if initial_state is not None:
+            self.current_iteration = initial_state.get("iteration", 0)
+            self.current_penalty = initial_state.get("current_penalty", 1.0)
+            
+            # Dichten laden und direkt in die Federn schreiben
+            for key_str, rho in initial_state.get("densities", {}).items():
+                u, v = map(int, key_str.split('_'))
+                spring = self.structure.get_spring(u, v)
+                spring.density = rho
+                spring.penalty = self.current_penalty
+                    
+            # Alte Dichten laden (als Tuples für den Konvergenzvergleich)
+            self.old_densities = {tuple(map(int, k.split('_'))): v for k, v in initial_state.get("old_densities", {}).items()}
 
     def optimize(self, target_mass_ratio=0.5, max_penalty=3.0, max_iterations=50, min_density=0.001, r_min=1.5):
         print(f"Start SIMP Optimierung (Ziel: {target_mass_ratio*100:.1f}%)")
@@ -354,17 +418,19 @@ class SIMP_Optimizer(BaseTopologyOptimizer):
         self._renumber_nodes()
         n_springs = self.structure.number_of_edges()
         
-        # Start Dichte direkt in den Elementen speichern
-        for u, v in self.structure.get_edges():
-            self.structure.get_spring(u, v).density = target_mass_ratio
+        # Start Dichte direkt in den Elementen speichern, wenn Opiemierungsstand nicht geladen wird
+        #neumathias
+        if self.current_iteration == 0:
+            for u, v in self.structure.get_edges():
+                self.structure.get_spring(u, v).density = target_mass_ratio
 
         print("Berechne Filter-Nachbarschaften (passiert nur einmal)...")
         self._prepare_filter(r_min)
         print("Filter vorbereitet. Starte Iterationen.")
 
         current_penalty = 1.0
-
-        for iteration in range(max_iterations):
+        #neumathias -> iteration von current iteration bis max
+        for iteration in range(self.current_iteration, max_iterations):
             # Penalty-Faktor p wird von 1 auf max_penalty langsam erhöht
             # -> verhindert, dass der Algorithmus zu früh in lokalen Minima stecken bleibt...
             if current_penalty < max_penalty:
@@ -410,7 +476,13 @@ class SIMP_Optimizer(BaseTopologyOptimizer):
             change = self._calculate_change()
             print(f"Iter {iteration+1} (p={current_penalty:.2f}): Energie={total_strain_energy:.4f}, Change={change:.4f}")
             
-            yield iteration
+            #yield iteration
+            yield {
+                "iteration": iteration,
+                "current_penalty": self.current_penalty,
+                "densities": {f"{u}_{v}": self.structure.get_spring(u, v).density for u, v in self.structure.get_edges()},
+                "old_densities": {f"{u}_{v}": val for (u, v), val in self.old_densities.items()}
+            }
 
             # Konvergenzkriterium: Dichten ändert sich kaum noch und p hat sein Maximum erreicht hat
             if change < 0.01 and current_penalty == max_penalty:

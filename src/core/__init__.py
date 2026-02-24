@@ -1,4 +1,4 @@
-import numpy as np
+'''import numpy as np
 import matplotlib.pyplot as plt
 from structureBuilder import StructureBuilder
 from optimizer import ESO_HardKill_Optimizer, ESO_SoftKill_Optimizer, SIMP_Optimizer
@@ -145,4 +145,4 @@ for iteration in opt_generator:
     plt.pause(0.001) 
 
 plt.ioff()
-plt.show()
+plt.show()'''

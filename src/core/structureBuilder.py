@@ -1,5 +1,5 @@
-from structure import Structure
-from elements import Spring, Node
+from core.structure import Structure
+from core.elements import Spring, Node
 import numpy as np
 
 class StructureBuilder:

@@ -1,7 +1,7 @@
-from elements import Node, Spring
+from core.elements import Node, Spring
 import networkx as nx
 import numpy as np
-from solver import solve
+from core.solver import solve
 
 
 class Structure:
