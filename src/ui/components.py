@@ -6,6 +6,10 @@ from pipeline.calculation_pipeline import run_calculation_pipeline
 import numpy as np
 import plotly.graph_objects as go
 
+# --ZUM BILDER HOCHLADEN-- Nils
+from image_io.image_importer import ImageImporter
+
+
 def show_home_page():
     '''Zeigt Startseite und steuert den gesamten Wizard-Ablauf.'''
 
@@ -50,6 +54,10 @@ def input_length_and_width():
         # Zwischenspeicher length and width im session_state 
         st.session_state.beam_length = length
         st.session_state.beam_width = width
+        
+        # Alte Bild Maske aus dem Puffer löschen --Nils
+        st.session_state.pop('structure_mask', None)
+        
         #Zwischenspeicher für Kraftpunkte und Lager zurücksetzen 
         # (für den Fall, dass der User vorher schon mal Daten eingegeben und dann zurück zum Start geklickt hat)
         st.session_state.force_points = []
@@ -58,6 +66,36 @@ def input_length_and_width():
         # Navigation zum nächsten Schritt
         st.session_state.app_step = "select_nodes"
         st.rerun()
+
+    # --PROVISORIUM ZUM BILD UPLOAD TESTEN!-- Nils
+    st.divider()
+    st.subheader("Oder: Eigene Struktur als Bild hochladen")
+    
+    uploaded_file = st.file_uploader("Bild auswählen", type=['png', 'jpg', 'jpeg'])
+
+    if uploaded_file is not None:
+        # Bild direkt über das uploaded_file Objekt verarbeiten
+        mask = ImageImporter.create_mask(uploaded_file, dark_is_material=True)        
+        if mask is not None:
+            img_length = mask.shape[1]
+            img_width = mask.shape[0]
+            
+            if st.button("Balken aus Bild generieren"):
+                # Maske in die DB speichern
+                calc_id = db_repository.save_input_to_table(length=img_length, width=img_width, mask=mask)                
+                
+                # Werte für die UI-Navigation im State speichern
+                st.session_state.current_calc_id = calc_id
+                st.session_state.beam_length = img_length
+                st.session_state.beam_width = img_width
+                
+                # Arrays leeren und weiter
+                st.session_state.force_points = []
+                st.session_state.fixed_points = []
+                st.session_state.roller_points = [] 
+                st.session_state.app_step = "select_nodes"
+                st.rerun()
+    # --PROVISORIUM ENDE--
 
 def previous_calculation_results():
     '''Zeigt eine Dropdown-Liste mit vorherigen Berechnungen an und ermöglicht das Laden eines Eintrags. 
@@ -89,6 +127,10 @@ def previous_calculation_results():
 
     if st.button("Diese Daten laden"):
         st.session_state.current_calc_id = selected_data.doc_id
+        
+        # --Alte Bild Maske aus dem Puffer löschen-- Nils
+        st.session_state.pop('structure_mask', None)
+        
         st.session_state.page = "results"
         st.rerun()
 
@@ -121,8 +163,27 @@ def show_beam_structure(length, width):
     x_range = np.arange(0, length)
     y_range = np.arange(0, width)
     X, Y = np.meshgrid(x_range, y_range)
-    x_flat = X.flatten()
-    y_flat = Y.flatten()
+    x_flat_all = X.flatten()
+    y_flat_all = Y.flatten()
+
+    # --ANPASSUNG FÜR BILDMASKEN-- Nils
+    x_flat, y_flat = [], []
+
+    # Maske aus der Datenbank holen
+    calc_data = db_repository.get_calculation_data(st.session_state.current_calc_id)
+    mask = calc_data.get('mask', None)
+
+    # Nur Knoten übernehmen, die laut Maske auch Material sind
+    for x, y in zip(x_flat_all, y_flat_all):
+        if mask is not None:
+            # mask-Array [y, x] (Zeilen, Spalten)
+            if mask[int(y), int(x)] > 0:
+                x_flat.append(x)
+                y_flat.append(y)
+        else:
+            x_flat.append(x)
+            y_flat.append(y)
+    # --ANPASSUNG ENDE--
 
     # 3. Farben bestimmen 
     point_colors = []

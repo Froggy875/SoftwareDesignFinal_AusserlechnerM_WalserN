@@ -9,6 +9,7 @@ def run_calculation_pipeline(calc_id: int):
     """Haupt-Pipeline für die Ergebnisseite."""
     # 1. Struktur aus aktuellen calc_id erstellen und berechnen
     calc_data = get_calculation_data(calc_id)
+
     structure = build_and_solve_structure(calc_data)
 
     # 2. Verbiegung Plotten

@@ -1,18 +1,23 @@
 from .db_connector import DatabaseConnector
 
-def save_input_to_table(length, width):
-        """Speichert die Eingabedaten in Tabelle mit dem Name 'inputdata' und gibt die ID des neuen Eintrags zurück."""
-        db = DatabaseConnector()
-        table = db.get_table('inputdata')
-        
-        input_data = {
-            "length": float(length),
-            "width": float(width),
-            "status": "new",
-        }
-        
-        # insert, da hier neuer Eintrag erstellt wird und den session.state.current_calc_id für die Berechnung bestimmt und zurückgibt
-        return table.insert(input_data)
+
+def save_input_to_table(length, width, mask=None):
+    """Speichert die Eingabedaten in Tabelle mit dem Name 'inputdata' und gibt die ID des neuen Eintrags zurück."""
+    db = DatabaseConnector()
+    table = db.get_table('inputdata')
+    
+    input_data = {
+        "length": float(length),
+        "width": float(width),
+        "status": "new",
+    }
+    
+    # Wenn eine Maske übergeben wurde, an die Daten anhängen
+    if mask is not None:
+        input_data["mask"] = mask
+    
+    # insert, da hier neuer Eintrag erstellt wird und den session.state.current_calc_id für die Berechnung bestimmt und zurückgibt
+    return table.insert(input_data)
 
 def update_calculation_data(calc_id, fixed_points, roller_points, force_points, forces_data, mode=None, optimizer=None):
     '''Aktualisiert einen bestehenden Datenbankeintrag mit den restlichen Wizard-Daten.'''
