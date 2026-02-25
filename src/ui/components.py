@@ -6,6 +6,7 @@ from pipeline.calculation_pipeline import run_calculation_pipeline
 import numpy as np
 import plotly.graph_objects as go
 from image_io.image_exporter import ImageExporter
+from streamlit_drawable_canvas import st_canvas
 
 # --ZUM BILDER HOCHLADEN-- 
 from image_io.image_importer import ImageImporter
@@ -97,6 +98,52 @@ def input_length_and_width():
                 st.session_state.app_step = "select_nodes"
                 st.rerun()
     # --PROVISORIUM ENDE--
+
+    # --PROVISORIUM ZUM BILDER ZEICHEN--Nils
+    st.divider()
+    st.subheader("Oder: Struktur selbst zeichnen (Schwarz/Weiß)")
+    
+    # Canvas = Zeichenfeld 
+    # width und height definieren die Auflösung -> damit die maximal mögliche Knotenzahl
+    canvas_result = st_canvas(
+        fill_color="black",
+        stroke_width=5,        # Pinselbreite
+        stroke_color="black",  # Pinselfarbe
+        background_color="white", # Hintergrundfarbe
+        width=120,             # Canvas Breite
+        height=120,             # Canvas Höhe
+        drawing_mode="freedraw",
+        key="canvas",
+    )
+
+    if st.button("Balken aus Zeichnung generieren"):
+        # canvas_result.image_data bekommt die Pixel, sobald gezeichnet wurde
+        if canvas_result.image_data is not None:
+            mask = ImageImporter.create_mask(
+                canvas_result.image_data, 
+                dark_is_material=True
+            )       
+            
+            if mask is not None:
+                img_length = mask.shape[1]
+                img_width = mask.shape[0]
+                
+                # In die DB speichern
+                calc_id = db_repository.save_input_to_table(length=img_length, width=img_width, mask=mask)                
+                
+                # States aktualisieren
+                st.session_state.current_calc_id = calc_id
+                st.session_state.beam_length = img_length
+                st.session_state.beam_width = img_width
+                
+                # Arrays leeren und weiter zu Node Selection
+                st.session_state.force_points = []
+                st.session_state.fixed_points = []
+                st.session_state.roller_points = [] 
+                st.session_state.app_step = "select_nodes"
+                st.rerun()
+    #--PROVISORIUM ENDE--
+
 
 def previous_calculation_results():
     '''Zeigt eine Dropdown-Liste mit vorherigen Berechnungen an und ermöglicht das Laden eines Eintrags. 
