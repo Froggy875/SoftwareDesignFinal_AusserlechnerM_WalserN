@@ -6,7 +6,7 @@ from pipeline.calculation_pipeline import run_calculation_pipeline
 import numpy as np
 import plotly.graph_objects as go
 
-# --ZUM BILDER HOCHLADEN-- Nils
+# --ZUM BILDER HOCHLADEN-- 
 from image_io.image_importer import ImageImporter
 
 
@@ -55,7 +55,7 @@ def input_length_and_width():
         st.session_state.beam_length = length
         st.session_state.beam_width = width
         
-        # Alte Bild Maske aus dem Puffer löschen --Nils
+        # Alte Bild Maske aus dem Puffer löschen --
         st.session_state.pop('structure_mask', None)
         
         #Zwischenspeicher für Kraftpunkte und Lager zurücksetzen 
@@ -67,7 +67,7 @@ def input_length_and_width():
         st.session_state.app_step = "select_nodes"
         st.rerun()
 
-    # --PROVISORIUM ZUM BILD UPLOAD TESTEN!-- Nils
+    # --PROVISORIUM ZUM BILD UPLOAD TESTEN!-- 
     st.divider()
     st.subheader("Oder: Eigene Struktur als Bild hochladen")
     
@@ -128,7 +128,7 @@ def previous_calculation_results():
     if st.button("Diese Daten laden"):
         st.session_state.current_calc_id = selected_data.doc_id
         
-        # --Alte Bild Maske aus dem Puffer löschen-- Nils
+        # --Alte Bild Maske aus dem Puffer löschen-- 
         st.session_state.pop('structure_mask', None)
         
         st.session_state.page = "results"
@@ -166,7 +166,7 @@ def show_beam_structure(length, width):
     x_flat_all = X.flatten()
     y_flat_all = Y.flatten()
 
-    # --ANPASSUNG FÜR BILDMASKEN-- Nils
+    # --ANPASSUNG FÜR BILDMASKEN-- 
     x_flat, y_flat = [], []
 
     # Maske aus der Datenbank holen
