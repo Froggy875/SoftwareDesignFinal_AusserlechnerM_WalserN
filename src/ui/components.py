@@ -5,6 +5,7 @@ from database import db_repository
 from pipeline.calculation_pipeline import run_calculation_pipeline
 import numpy as np
 import plotly.graph_objects as go
+from image_io.image_exporter import ImageExporter
 
 # --ZUM BILDER HOCHLADEN-- 
 from image_io.image_importer import ImageImporter
@@ -361,8 +362,14 @@ def select_optimizer():
         key="optimizer_choice"
     )
 
+    # Für GIF Export --
+    wants_gif = st.checkbox("Verlauf für GIF-Export aufzeichnen (kann die Berechnung leicht verlangsamen)")
+    
     if st.button("Verformung berechnen"):
         st.session_state.mode = 'optimization_and_bending'
+
+        # Checkbox State speichern --
+        st.session_state.record_gif = wants_gif
 
         db_repository.update_calculation_data(
             calc_id=st.session_state.current_calc_id,
@@ -385,8 +392,44 @@ def show_result_page():
     st.write(f"Ergebnis für ID {st.session_state.current_calc_id}:")
     run_calculation_pipeline(st.session_state.current_calc_id)
 
+    # --ZUM GIFS downloaden-- 
+    if st.session_state.get("opt_state") == "finished":
+        st.divider()
+        st.subheader("Export")
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            if 'final_png_bytes' in st.session_state:
+                st.download_button(
+                    label="Finales Bild speichern (PNG)",
+                    data=st.session_state.final_png_bytes,
+                    file_name=f"topologie_final_{st.session_state.current_calc_id}.png",
+                    mime="image/png"
+                )
+        
+        with col2:
+            # GIF nur anbieten, wenn Checkbox aktiv war und Frames da sind
+            if 'opt_frames' in st.session_state and len(st.session_state.opt_frames) > 0:
+                gif_bytes = ImageExporter.get_gif_bytes(st.session_state.opt_frames, duration=150)
+                if gif_bytes:
+                    st.download_button(
+                        label="Verlauf speichern (GIF)",
+                        data=gif_bytes,
+                        file_name=f"topologie_verlauf_{st.session_state.current_calc_id}.gif",
+                        mime="image/gif"
+                    )
+    # --ÄNDERUNG ENDE--
+
+    
+
     if st.button("Zurück zur Eingabe"):
         st.session_state.page = "home"
         st.session_state.app_step = "input_form"
         st.session_state.opt_state = "pending" 
+
+        #--Bilder Cache leeren-- 
+        st.session_state.pop('opt_frames', None)
+        st.session_state.pop('final_png_bytes', None)
+        #--ÄNDERUNG ENDE--
+
         st.rerun()
