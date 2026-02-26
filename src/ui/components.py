@@ -10,26 +10,21 @@ from pipeline.calculation_pipeline import get_prepared_structure
 from ui import visualizer
 import matplotlib.pyplot as plt
 from pipeline.optimize_structure import run_optimization_loop
-# --ZUM BILDER HOCHLADEN-- 
 from image_io.image_importer import ImageImporter
 
 
 def streamlit_ui():
-    '''Zeigt Startseite und steuert den gesamten Wizard-Ablauf.'''
+    '''Erzeugt das User-Interface und steuert den Ablauf'''
+    st.title("Structure Designer")
 
-    st.title("Startseite")
-    st.write("Mit dieser Applikation können Sie einen Balken optimieren und die Verformung berechnen.")
-
-    # 1. Startpage
-    if st.session_state.app_step == "input_form":
-        input_length_and_width()
-        upload_image()
-        draw_structure()
+    if st.session_state.app_step == "main_page":
+        st.header("Hauptmenü")
         previous_calculation_results()
-
+        new_project_ui()
+        
     # 2. Kraftpunkte, Festlager und Loslager auswählen
-    elif st.session_state.app_step == "select_nodes":
-        show_beam_structure(st.session_state.beam_length, st.session_state.beam_width)
+    elif st.session_state.app_step == "boundary_conditions":
+        boundary_conditions_ui()
 
     # 3. Kraftbetrag und Angriffswinkel eingeben
     elif st.session_state.app_step == "input_forces":
@@ -41,43 +36,118 @@ def streamlit_ui():
     #5. Ergebnisseite anzeigen
     elif st.session_state.app_step == "results":
         show_result_page()
-       
-def input_length_and_width():
-    '''Eingabefelder für Länge und Breite des Balkens'''
 
-    col1, col2 = st.columns(2)
-    with col1:
-        st.header("Balkenlänge")
-        length = st.number_input("Länge des Balkens (cm)", min_value=1, step=1, key="length")
-        
-    with col2:
-        st.header("Balkenbreite")
-        width = st.number_input("Breite des Balkens (cm)", min_value=1, step=1, key="width")
+def previous_calculation_results():
+    '''Zeigt eine Dropdown-Liste mit vorherigen Berechnungen an und ermöglicht das Laden eines Eintrags. 
+    current_calc_id wird zu calc_id der ausgewählten Berechnung im Speicher'''
     
-    if st.button("Balken generieren"):
-        # Länge und Breite werden direkt gespeichert, der Berechnungsdurchlauf wird 
-        # durch die Datenbank-calc-id eindeutig identifizierbar
-        calc_id = db_repository.save_input_to_table(length=length, width=width)
-        st.session_state.current_calc_id = calc_id
-        # Zwischenspeicher length and width im session_state 
-        st.session_state.beam_length = length
-        st.session_state.beam_width = width
-        # Alte Bild Maske aus dem Puffer löschen --
-        st.session_state.pop('structure_mask', None)
-        #Zwischenspeicher für Kraftpunkte und Lager zurücksetzen 
-        # (für den Fall, dass der User vorher schon mal Daten eingegeben und dann zurück zum Start geklickt hat)
-        st.session_state.force_points = []
-        st.session_state.fixed_points = []
-        st.session_state.roller_points = [] 
-        # Navigation zum nächsten Schritt
-        st.session_state.app_step = "select_nodes"
-        st.rerun()
+    st.divider()
+    st.header("Bestehendes Projekt laden")
+    
+    #Datenbank laden
+    db = db_connector.DatabaseConnector()
+    table = db.get_table("inputdata")
+    all_entries = table.all() 
+    #Info, falls es noch keinen Eintrag gibt
+    if not all_entries:
+        st.info("Noch keine Berechnungen vorhanden.")
+        return
+
+    #hier noch anzeige ändern
+    # Dictionary bauen: Label -> Datensatz 
+    options = {}
+    for entry in all_entries:
+        label = f"Projekt{entry.doc_id} | {entry.get('project_type')} | Erstellt am {entry.get('created_date')} um {entry.get('created_time')}"
+        options[label] = entry
+    col1, col2 = st.columns([1, 3], vertical_alignment="bottom")
+    with col1:
+        selected_label = st.selectbox("Projekt auswählen", 
+            options=list(options.keys())
+        )
+        # Den passenden Datensatz heraussuchen
+        selected_data = options[selected_label]
+
+    #Auswahl laden
+    with col2:
+        if st.button("Projekt laden"):
+            st.session_state.current_calc_id = selected_data.doc_id
+            # --Alte Bild Maske aus dem Puffer löschen-- 
+            st.session_state.pop('structure_mask', None)
+            st.session_state.app_step = "results"
+            st.rerun()
+
+def new_project_ui():
+    st.divider()
+    st.header("Neues Projekt")
+    tabs = st.radio("", ["Rechteckige Struktur", "Struktur zeichnen", "Struktur aus Bild generieren"], horizontal=True) #radio, damit canvas funktioniert
+
+    if tabs == "Rechteckige Struktur":
+        input_rectangle()
+    
+    if tabs == "Struktur zeichnen":
+        draw_structure()
+    
+    if tabs == "Struktur aus Bild generieren":
+        upload_image()
+
+def input_rectangle():
+    '''Eingabefelder für Länge und Breite des Balkens'''
+    st.subheader("Form definieren")
+    _, col2, _ = st.columns([1,2,1])
+    
+    with col2:
+        length = st.slider("Länge", min_value=1, max_value=120, value=20, step=1)
+        width = st.slider("Breite", min_value=1, max_value=120, value=10, step=1)
+
+    #_, col_plot_mitte, _ = st.columns([1,2,1])
+    #with col_plot_mitte:    
+        fig = go.Figure()
+
+        fig.add_shape(
+            type="rect",
+            x0=0, y0=0,
+            x1=length, y1=width,
+            line=dict(color="RoyalBlue", width=3),
+            fillcolor="LightSkyBlue",
+            opacity=0.5
+        )
+        # X-Achse bleibt normal (wächst nach rechts)
+        fig.update_xaxes(range=[0, length], title_text="Länge (cm)")
+
+        # Y-Achse umdrehen: Wir starten beim höchsten Wert (z.B. 80) und gehen bis -10
+        fig.update_yaxes(
+            range=[width, 0], # HIER: Der größere Wert steht links!
+            title_text="Breite (cm)",
+            scaleanchor="x",
+            scaleratio=1
+        ) 
+
+        st.plotly_chart(fig, use_container_width=True)
+
+    _, _, button_right = st.columns([1, 1, 1])
+    with button_right:
+        if st.button("Weiter zu Randbedingungen"):
+            # Länge und Breite werden direkt gespeichert, der Berechnungsdurchlauf wird 
+            # durch die Datenbank-calc-id eindeutig identifizierbar
+            calc_id = db_repository.save_input_to_table(project_type="Rechteck", length=length, width=width)
+            st.session_state.current_calc_id = calc_id
+            # Zwischenspeicher length and width im session_state 
+            st.session_state.beam_length = length
+            st.session_state.beam_width = width
+            # Alte Bild Maske aus dem Puffer löschen --
+            st.session_state.pop('structure_mask', None)
+            #Zwischenspeicher für Kraftpunkte und Lager zurücksetzen 
+            # (für den Fall, dass der User vorher schon mal Daten eingegeben und dann zurück zum Start geklickt hat)
+            st.session_state.force_points = []
+            st.session_state.fixed_points = []
+            st.session_state.roller_points = [] 
+            # Navigation zum nächsten Schritt
+            st.session_state.app_step = "boundary_conditions"
+            st.rerun()
 
 def upload_image():
-    st.divider()
-    st.subheader("Oder: Eigene Struktur als Bild hochladen")
-    
-    uploaded_file = st.file_uploader("Bild auswählen", type=['png', 'jpg', 'jpeg'])
+    st.subheader("Eigene Struktur als Bild hochladen")
+    uploaded_file = st.file_uploader("Bild auswählen", type=['png', 'jpg', 'jpeg'], width=300)
 
     if uploaded_file is not None:
         # Bild direkt über das uploaded_file Objekt verarbeiten
@@ -88,7 +158,7 @@ def upload_image():
             
             if st.button("Balken aus Bild generieren"):
                 # Maske in die DB speichern
-                calc_id = db_repository.save_input_to_table(length=img_length, width=img_width, mask=mask)                
+                calc_id = db_repository.save_input_to_table(project_type="Upload", length=img_length, width=img_width, mask=mask)                
                 
                 # Werte für die UI-Navigation im State speichern
                 st.session_state.current_calc_id = calc_id
@@ -99,15 +169,13 @@ def upload_image():
                 st.session_state.force_points = []
                 st.session_state.fixed_points = []
                 st.session_state.roller_points = [] 
-                st.session_state.app_step = "select_nodes"
+                st.session_state.app_step = "boundary_conditions"
                 st.rerun()
     # --PROVISORIUM ENDE--
 
 def draw_structure():
     # --PROVISORIUM ZUM BILDER ZEICHEN--Nils
-    st.divider()
-    st.subheader("Oder: Struktur selbst zeichnen (Schwarz/Weiß)")
-    
+    st.subheader("Struktur zeichnen")
     # Canvas = Zeichenfeld 
     # width und height definieren die Auflösung -> damit die maximal mögliche Knotenzahl
     canvas_result = st_canvas(
@@ -128,13 +196,12 @@ def draw_structure():
                 canvas_result.image_data, 
                 dark_is_material=True
             )       
-            
             if mask is not None:
                 img_length = mask.shape[1]
                 img_width = mask.shape[0]
                 
                 # In die DB speichern
-                calc_id = db_repository.save_input_to_table(length=img_length, width=img_width, mask=mask)                
+                calc_id = db_repository.save_input_to_table(project_type="Zeichnung", length=img_length, width=img_width, mask=mask)                
                 
                 # States aktualisieren
                 st.session_state.current_calc_id = calc_id
@@ -145,47 +212,13 @@ def draw_structure():
                 st.session_state.force_points = []
                 st.session_state.fixed_points = []
                 st.session_state.roller_points = [] 
-                st.session_state.app_step = "select_nodes"
+                st.session_state.app_step = "boundary_conditions"
                 st.rerun()
     #--PROVISORIUM ENDE--
 
-
-def previous_calculation_results():
-    '''Zeigt eine Dropdown-Liste mit vorherigen Berechnungen an und ermöglicht das Laden eines Eintrags. 
-    current_calc_id wird zu calc_id der ausgewählten Berechnung im Speicher'''
-    st.divider()
-    st.header("Vorherige Berechnungen")
-    
-    db = db_connector.DatabaseConnector()
-    table = db.get_table("inputdata")
-    all_entries = table.all() 
-    
-    if not all_entries:
-        st.info("Noch keine Berechnungen vorhanden.")
-        return
-
-    # Dictionary bauen: Label -> Datensatz
-    options = {}
-    for entry in all_entries:
-        label = f"ID {entry.doc_id}: L={entry.get('length')}cm, B={entry.get('width')}cm"
-        options[label] = entry
-
-    selected_label = st.selectbox(
-        "Wähle eine vorherige Berechnung aus:", 
-        options=list(options.keys())
-    )
-
-    # Den passenden Datensatz heraussuchen
-    selected_data = options[selected_label]
-
-    if st.button("Diese Daten laden"):
-        st.session_state.current_calc_id = selected_data.doc_id
-        
-        # --Alte Bild Maske aus dem Puffer löschen-- 
-        st.session_state.pop('structure_mask', None)
-        
-        st.session_state.app_step = "results"
-        st.rerun()
+def boundary_conditions_ui():
+    st.subheader("Randbedingungen & Belastung")
+    show_beam_structure(st.session_state.beam_length, st.session_state.beam_width)
 
 @st.fragment
 def show_beam_structure(length, width):
@@ -194,23 +227,25 @@ def show_beam_structure(length, width):
     if 'force_points' not in st.session_state: st.session_state.force_points = []
     if 'fixed_points' not in st.session_state: st.session_state.fixed_points = []
     if 'roller_points' not in st.session_state: st.session_state.roller_points = []
-    if 'selection_step' not in st.session_state: st.session_state.selection_step = 1
 
-    # 2. WIZARD-LOGIK: Welcher Schritt ist aktiv?
-    step = st.session_state.selection_step
+    # 2. Werkzeugauswahl
+    st.subheader("Struktur definieren")
+
+    mode = st.radio(
+        "Was möchtest du auf dem Gitter platzieren?",
+        options=["Kräfte (Rot)", "Festlager (Blau)", "Loslager (Grün)"],
+        horizontal=True
+    )
     
-    if step == 1:
-        st.subheader("Schritt 1: Kraftangriffspunkte wählen")
-        st.info("Klicke auf Punkte, an denen Kräfte angreifen sollen (Rot).")
+    if mode == "Kräfte (Rot)":
         active_list = st.session_state.force_points
-    elif step == 2:
-        st.subheader("Schritt 2: Festlager wählen")
-        st.info("Klicke auf Punkte, die als Festlager dienen sollen (Blau).")
+        st.info("Klicke auf Punkte, an denen Kräfte angreifen sollen.")
+    elif mode == "Festlager (Blau)":
         active_list = st.session_state.fixed_points
+        st.info("Klicke auf Punkte, die als Festlager dienen sollen.")
     else:
-        st.subheader("Schritt 3: Loslager wählen")
-        st.info("Klicke auf Punkte, die als Loslager dienen sollen (Grün).")
         active_list = st.session_state.roller_points
+        st.info("Klicke auf Punkte, die als Loslager dienen sollen.")
 
     # Raster aufbauen
     x_range = np.arange(0, length)
@@ -312,30 +347,111 @@ def show_beam_structure(length, width):
     if needs_rerun:
         st.rerun(scope="fragment")
 
-    # 5. Navigation (Buttons für Weiter / Zurück / Speichern)
-    st.divider() 
-    col1, col2 = st.columns(2)
+    #5. Krafteingabe
+    st.divider()
+    st.subheader("Kräfte definieren")
     
-    with col1:
-        if step > 1:
-            if st.button("Zurück"):
-                st.session_state.selection_step -= 1
-                st.rerun() # Hier komplettes Rerun, weil sich das UI stark ändert
+    if len(st.session_state.force_points) == 0:
+        st.info("Wähle im Gitter Kraftpunkte (Rot) aus, um hier deren Werte zu definieren.")
+    else:
+        st.info("Konvention: 0° = nach unten | -90° = nach links | 90° = nach rechts")
 
-    with col2:
-        if step == 1:
-            if st.button("Weiter zu Festlagern"):
-                st.session_state.selection_step = 2
-                st.rerun()
-        elif step == 2:
-            if st.button("Weiter zu Loslagern"):
-                st.session_state.selection_step = 3
-                st.rerun()
-        elif step == 3:
-            if st.button("Auswahl abschließen"):
-                st.session_state.app_step = "input_forces"
-                st.session_state.selection_step = 1 # selection_step wieder auf 1 zurücksetzen
-                st.rerun(scope="app")
+        if 'forces_data' not in st.session_state:
+            st.session_state.forces_data = {}
+
+        # Eingabefelder für jeden Punkt generieren
+        for i, pt in enumerate(st.session_state.force_points):
+            x, y = pt
+            st.markdown(f"**Punkt {i+1} (X: {x:.0f}, Y: {y:.0f})**")
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                mag = st.number_input("Kraft (N)", min_value=0.0, value=1.0, step=0.1, key=f"mag_{x}_{y}")
+            with col2:
+                angle = st.number_input("Winkel (°)", value=0, step=1, key=f"angle_{x}_{y}")
+            
+            # Berechnungen
+            pt_key_str = f"{x}_{y}"
+            angle_rad = math.radians(angle)
+            force_x = round(mag * math.sin(angle_rad), 4) 
+            force_y = round(mag * math.cos(angle_rad), 4) 
+            
+            # Direkt im State speichern
+            st.session_state.forces_data[pt_key_str] = [force_x, force_y]
+
+    #6. Abschlussbutton und in DB speichern
+    st.divider()
+    col_btn1, col_btn2 = st.columns(2)
+    
+    with col_btn1:
+        # Button ist nur aktiv, wenn es mindestens eine Kraft gibt
+        if st.button("Verbiegung berechnen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
+            st.session_state.mode = 'bending_only'
+            
+            # DB Update
+            db_repository.update_calculation_data(
+                calc_id=st.session_state.current_calc_id,
+                fixed_points=st.session_state.fixed_points,
+                roller_points=st.session_state.roller_points,
+                force_points=st.session_state.force_points,
+                forces_data=st.session_state.forces_data,
+                mode=st.session_state.mode
+            )
+            
+            st.session_state.app_step = "results"
+            st.rerun(scope="app") # alles laden
+
+    with col_btn2:
+        if st.button("Optimierer hinzufügen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
+            st.session_state.app_step = "select_optimizer"
+            st.rerun(scope="app")
+
+def get_dynamic_plot_height(min_height=300, max_height=1200):
+        """
+        Berechnet die optimale Pixel-Höhe für den Plotly-Graphen, 
+        damit er die Streamlit-Spalte ohne weiße Ränder ausfüllt.
+        """
+        length = st.session_state.beam_length
+        width = st.session_state.beam_width
+        if length == 0: # Sicherheitscheck
+            return min_height
+            
+        # Wir nehmen an, deine Streamlit-Spalte ist ca. 700 Pixel breit.
+        # Das Verhältnis von Breite zu Länge bestimmt die nötige Höhe.
+        ratio = width / length
+        
+        # 700px Grundbreite * Seitenverhältnis + 80px für Ränder/Titel
+        calculated_height = int(700 * ratio) + 80
+        
+        # Begrenzen, damit der Plot nicht winzig klein oder gigantisch groß wird
+        if calculated_height < min_height:
+            return min_height
+        elif calculated_height > max_height:
+            return max_height
+        else:
+            return calculated_height
+
+def get_dynamic_point_size(length, plot_width_px=650):
+    """
+    Berechnet die optimale Punktgröße (Marker Size) in Plotly, 
+    damit die Quadrate eine geschlossene Fläche bilden.
+    """
+    if length <= 0:
+        return 5
+        
+    # Wie viele Punkte liegen tatsächlich nebeneinander?
+    num_points_x = length
+    
+    # Verfügbare Pixel durch Anzahl der Punkte teilen
+    # (Wir gehen von ca. 650 nutzbaren Pixeln in der Streamlit-Spalte aus)
+    ideal_size = plot_width_px / num_points_x
+    
+    # Wir machen die Punkte minimal größer (Faktor 1.05), 
+    # damit sie sicher überlappen und keine weißen Blitzer entstehen.
+    calculated_size = ideal_size * 1.05
+    
+    # Grenzen setzen: Nicht unsichtbar klein (< 1.5) und nicht gigantisch groß (> 50)
+    return max(1.5, min(calculated_size, 20))
 
 def input_force_data():
     st.header("Kräfte definieren")
@@ -438,147 +554,103 @@ def select_optimizer():
 
 def show_result_page():
 
-    st.title("Ergebnisse")
-        
-    st.write(f"Ergebnis für ID {st.session_state.current_calc_id}:")
-    render_results_page(st.session_state.current_calc_id)
+    current_calc_id = st.session_state.get("current_calc_id")
+    last_id = st.session_state.get("last_viewed_calc_id")
+    if current_calc_id != last_id:
+        reset_optimization_state() 
+        st.session_state.last_viewed_calc_id = current_calc_id
 
-    # --ZUM GIFS downloaden-- -> noch in funktion auslagern
-    if st.session_state.get("opt_state") == "finished":
-        st.divider()
-        st.subheader("Export")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            if 'final_png_bytes' in st.session_state:
+    st.header("Rechenvorgang")
+
+    if "saved_structure" not in st.session_state or st.session_state.get("struct_calc_id") != current_calc_id:
+        structure, calc_data = get_prepared_structure(current_calc_id)
+        deformation = create_deformation_fig(structure)
+
+        st.session_state.saved_structure = structure
+        st.session_state.saved_calc_data = calc_data
+        st.session_state.struct_calc_id = current_calc_id
+        st.session_state.deformation_plot = deformation
+    else:
+        structure = st.session_state.saved_structure
+        calc_data = st.session_state.saved_calc_data
+        deformation = st.session_state.deformation_plot
+
+
+    opt1, opt2 = st.columns([2,1])
+    with opt1:
+        #render_results_page(st.session_state.current_calc_id)
+        live_optimizer_ui(current_calc_id, structure, calc_data)
+    with opt2:
+        if st.button("💾 In Datenbank speichern"):
+            db_repository.save_optimization_state(current_calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
+            st.success("Zustand in TinyDB gesichert!")
+
+        if 'final_png_bytes' in st.session_state:
+            st.download_button(
+                label="Bild speichern (PNG)",
+                data=st.session_state.final_png_bytes,
+                file_name=f"topologie_final_{current_calc_id}.png",
+                mime="image/png"
+            )
+        # GIF nur anbieten, wenn Checkbox aktiv war und Frames da sind
+        if 'opt_frames' in st.session_state and len(st.session_state.opt_frames) > 0:
+            gif_bytes = ImageExporter.get_gif_bytes(st.session_state.opt_frames, duration=150)
+            if gif_bytes:
                 st.download_button(
-                    label="Finales Bild speichern (PNG)",
-                    data=st.session_state.final_png_bytes,
-                    file_name=f"topologie_final_{st.session_state.current_calc_id}.png",
-                    mime="image/png"
+                    label="Verlauf speichern (GIF)",
+                    data=gif_bytes,
+                    file_name=f"topologie_verlauf_{st.session_state.current_calc_id}.gif",
+                    mime="image/gif"
                 )
-        
-        with col2:
-            # GIF nur anbieten, wenn Checkbox aktiv war und Frames da sind
-            if 'opt_frames' in st.session_state and len(st.session_state.opt_frames) > 0:
-                gif_bytes = ImageExporter.get_gif_bytes(st.session_state.opt_frames, duration=150)
-                if gif_bytes:
-                    st.download_button(
-                        label="Verlauf speichern (GIF)",
-                        data=gif_bytes,
-                        file_name=f"topologie_verlauf_{st.session_state.current_calc_id}.gif",
-                        mime="image/gif"
-                    )
-    # --ÄNDERUNG ENDE--
-    if st.button("Zurück zur Eingabe"):
-        st.session_state.app_step = "input_form"
-        st.session_state.opt_state = "pending" 
-
-        #--Bilder Cache leeren-- 
-        st.session_state.pop('opt_frames', None)
-        st.session_state.pop('final_png_bytes', None)
-        #--ÄNDERUNG ENDE--
-
-        st.rerun()
-
-
-def render_results_page(calc_id: int):
-    """Haupt-UI für die Ergebnisseite."""
     
-    # 1. Daten und fertige Struktur von der Pipeline anfordern
-    structure, calc_data = get_prepared_structure(calc_id)
-
-    # 2. Verbiegung Plotten
-    st.subheader("1. Verformung des Balkens")
-    fig_bending = visualizer.plot_deformation(structure, scale_factor=1.0)
+    def1, def2 = st.columns([2,1])
+    with def1:
+        st.header("Verformung")
+        st.pyplot(deformation, use_container_width=True)
     
-    _, center_col, _ = st.columns([1, 3, 1]) # Zentrierung des Plots
-    with center_col:
-        st.pyplot(fig_bending, use_container_width=True)
-        # schließen, damit RAM nicht voll wird
-        plt.close(fig_bending) 
+    with def2:
+        img_bytes = ImageExporter.get_image_bytes(deformation)
+        st.download_button(
+            label="Bild speichern (PNG)",
+            data=img_bytes,
+            file_name=f"deformation_{current_calc_id}.png",
+            mime="image/png"
+        )
 
-    # 3. Je nach Modus das Optimierer-UI laden
+    if st.button("🏠 Zurück zur Startseite"):
+        reset_optimization_state() # 1. Speicher aufräumen
+        st.session_state.app_step = "main_page"
+        st.session_state.current_calc_id = None
+        st.rerun() 
+
+def live_optimizer_ui(calc_id, structure, calc_data):
     mode = calc_data.get('mode', 'bending_only')
     if mode == 'optimization_and_bending':
-        _render_optimization_ui(structure, calc_data, calc_id)
+        optimizer_type = calc_data.get('optimizer')
+        plot_spot = st.empty()
 
+    run_optimization_loop(structure, optimizer_type, plot_spot, calc_id)
 
-def _render_optimization_ui(structure, calc_data, calc_id):
-    """Baut das UI für die Optimierung auf und steuert die Buttons."""
-    st.divider()
-    st.subheader("2. Strukturoptimierung")
+def create_deformation_fig(structure):
+    fig_deformation = visualizer.plot_deformation(structure, scale_factor=1.0)
+    return fig_deformation
 
-    saved_state = calc_data.get('saved_opt_state')
-    has_saved_state = saved_state is not None
-
-    if 'opt_state' not in st.session_state:
-        st.session_state.opt_state = "pending"
-
-    col_l, col_main, col_r = st.columns([1, 4, 1])
+def reset_optimization_state():
+    """Löscht alle spezifischen Optimierungs-Variablen aus dem Speicher."""
+    keys_to_clear = [
+        'current_opt', 
+        'current_opt_type', 
+        'opt_generator', 
+        'opt_state', 
+        'last_iteration', 
+        'opt_frames', 
+        'json_ready_state', 
+        'final_png_bytes',
+        'saved_structure',
+        'saved_calc_data',
+        'deformation_plot'
+    ]
     
-    with col_main:
-        # Fenster für Live-Plot
-        plot_spot = st.empty() 
-        
-        # Plot-Vorschau: Aus aktueller Session oder aus DB
-        if "json_ready_state" in st.session_state and "current_opt" in st.session_state:
-            opt = st.session_state.current_opt
-            iteration = st.session_state.json_ready_state["iteration"]
-            fig = visualizer.plot_optimization_step(opt.structure, opt, st.session_state.current_opt_type, iteration)
-            plot_spot.pyplot(fig, use_container_width=True)
-            plt.close(fig)
-            
-        elif has_saved_state:
-            st.info(f"Gespeicherter Spielstand gefunden: Iteration {saved_state['iteration']}")
-
-        # Interaktions-Logik
-        state = st.session_state.get("opt_state", "pending")
-
-        if state == "pending":
-            if has_saved_state:
-                label = f"▶️ Optimierung fortsetzen (ab Iteration {saved_state['iteration']})"
-            else:
-                label = "🚀 Optimierung starten"
-                
-            if st.button(label, type="primary", use_container_width=True):
-                # Alte Generatoren sicher löschen
-                st.session_state.pop("opt_generator", None)
-                st.session_state.pop("current_opt", None)
-                
-                st.session_state.opt_state = "running"
-                st.rerun()
-
-        elif state == "running":
-            if st.button("⏸️ Pausieren", use_container_width=True):
-                st.session_state.opt_state = "stopped"
-                st.rerun()
-                
-            # live-plot starten
-            optimizer_type = calc_data.get('optimizer')
-            # hier evtl fragment und pause-button drinnen??
-            run_optimization_loop(structure, optimizer_type, plot_spot, calc_id)
-
-        elif state in ["stopped", "finished"]:
-            if state == "finished":
-                st.success("🎉 Optimierung abgeschlossen!")
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                if state == "stopped":
-                    if st.button("▶️ Weiterlaufen lassen", type="primary", use_container_width=True):
-                        st.session_state.opt_state = "running"
-                        st.rerun()
-                elif state == "finished":
-                    if st.button("🔄 Neustart (leert DB-Stand)", use_container_width=True):
-                        db_repository.delete_optimization_state(calc_id) 
-                        st.session_state.opt_state = "pending"
-                        st.session_state.pop("json_ready_state", None)
-                        st.session_state.pop("opt_generator", None)
-                        st.session_state.pop("current_opt", None)
-                        st.rerun()
-            
-            with col2:
-                if st.button("💾 In Datenbank speichern", use_container_width=True):
-                    db_repository.save_optimization_state(calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
-                    st.success("Zustand in TinyDB gesichert!")
+    for key in keys_to_clear:
+        if key in st.session_state:
+            del st.session_state[key]

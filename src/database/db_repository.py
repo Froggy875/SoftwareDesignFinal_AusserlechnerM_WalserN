@@ -1,23 +1,28 @@
 import os
 import json
 import numpy as np
+from datetime import date, datetime
 from .db_connector import DatabaseConnector
+
 
 # Ordner definieren, in dem die npz-Dateien landen
 MATRIX_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'matrizen_daten')
 os.makedirs(MATRIX_DIR, exist_ok=True)
 
 
-def save_input_to_table(length, width, mask=None):
+def save_input_to_table(project_type,length, width, mask=None):
     """Speichert die Eingabedaten in TinyDB und die Maske als .npz-Datei."""
     db = DatabaseConnector()
     table = db.get_table('inputdata')
     input_data = {
+        "project_type": project_type,
         "length": int(length),
         "width": int(width),
+        "created_date": date.today(),
+        "created_time": datetime.now().time()
     }
     
-    # 1. Neuen Eintrag erstellen und die ID abgreifen
+    # 1. Neuen Eintrag erstellen und die ID übernehmen
     calc_id = table.insert(input_data)
     
     # 2. Wenn eine Maske übergeben wurde, als .npz speichern
@@ -53,6 +58,10 @@ def update_calculation_data(calc_id, fixed_points, roller_points, force_points, 
 
 def get_calculation_data(calc_id: int) -> dict:
     """Holt alle Daten zu einer ID, inklusive der verknüpften Matrix."""
+
+    if calc_id is None:
+        return None
+    
     db = DatabaseConnector()
     table = db.get_table("inputdata")
     

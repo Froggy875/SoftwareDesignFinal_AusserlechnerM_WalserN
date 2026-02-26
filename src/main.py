@@ -16,7 +16,7 @@ def main():
     if "mode" not in st.session_state:
         st.session_state.mode = None
     if "app_step" not in st.session_state:
-        st.session_state.app_step = "input_form"
+        st.session_state.app_step = "main_page"
 
     # UI anzeigen
     if st.session_state.app_step:
