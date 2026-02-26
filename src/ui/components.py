@@ -2,26 +2,29 @@ import math
 import streamlit as st
 from database import db_connector
 from database import db_repository
-from pipeline.calculation_pipeline import run_calculation_pipeline
 import numpy as np
 import plotly.graph_objects as go
 from image_io.image_exporter import ImageExporter
 from streamlit_drawable_canvas import st_canvas
-
+from pipeline.calculation_pipeline import get_prepared_structure
+from ui import visualizer
+import matplotlib.pyplot as plt
+from pipeline.optimize_structure import run_optimization_loop
 # --ZUM BILDER HOCHLADEN-- 
 from image_io.image_importer import ImageImporter
 
 
-def show_home_page():
+def streamlit_ui():
     '''Zeigt Startseite und steuert den gesamten Wizard-Ablauf.'''
 
     st.title("Startseite")
     st.write("Mit dieser Applikation können Sie einen Balken optimieren und die Verformung berechnen.")
 
-    # 1. Anzahl Nodes in Länge und Breite eingeben
+    # 1. Startpage
     if st.session_state.app_step == "input_form":
         input_length_and_width()
-        # Option zum Laden vorheriger Berechnungen
+        upload_image()
+        draw_structure()
         previous_calculation_results()
 
     # 2. Kraftpunkte, Festlager und Loslager auswählen
@@ -35,6 +38,9 @@ def show_home_page():
     # 4. Falls in Schritt 3 gewünscht, dann Optimierer auswählen
     elif st.session_state.app_step == "select_optimizer":
         select_optimizer()
+    #5. Ergebnisseite anzeigen
+    elif st.session_state.app_step == "results":
+        show_result_page()
        
 def input_length_and_width():
     '''Eingabefelder für Länge und Breite des Balkens'''
@@ -56,10 +62,8 @@ def input_length_and_width():
         # Zwischenspeicher length and width im session_state 
         st.session_state.beam_length = length
         st.session_state.beam_width = width
-        
         # Alte Bild Maske aus dem Puffer löschen --
         st.session_state.pop('structure_mask', None)
-        
         #Zwischenspeicher für Kraftpunkte und Lager zurücksetzen 
         # (für den Fall, dass der User vorher schon mal Daten eingegeben und dann zurück zum Start geklickt hat)
         st.session_state.force_points = []
@@ -69,7 +73,7 @@ def input_length_and_width():
         st.session_state.app_step = "select_nodes"
         st.rerun()
 
-    # --PROVISORIUM ZUM BILD UPLOAD TESTEN!-- 
+def upload_image():
     st.divider()
     st.subheader("Oder: Eigene Struktur als Bild hochladen")
     
@@ -99,6 +103,7 @@ def input_length_and_width():
                 st.rerun()
     # --PROVISORIUM ENDE--
 
+def draw_structure():
     # --PROVISORIUM ZUM BILDER ZEICHEN--Nils
     st.divider()
     st.subheader("Oder: Struktur selbst zeichnen (Schwarz/Weiß)")
@@ -179,7 +184,7 @@ def previous_calculation_results():
         # --Alte Bild Maske aus dem Puffer löschen-- 
         st.session_state.pop('structure_mask', None)
         
-        st.session_state.page = "results"
+        st.session_state.app_step = "results"
         st.rerun()
 
 @st.fragment
@@ -330,7 +335,7 @@ def show_beam_structure(length, width):
             if st.button("Auswahl abschließen"):
                 st.session_state.app_step = "input_forces"
                 st.session_state.selection_step = 1 # selection_step wieder auf 1 zurücksetzen
-                st.rerun()
+                st.rerun(scope="app")
 
 def input_force_data():
     st.header("Kräfte definieren")
@@ -384,7 +389,7 @@ def input_force_data():
     # Der nächste Übergang
     if st.button("Verbiegung berechnen"):
         st.session_state.mode = 'bending_only'
-        st.session_state.page = "results"
+        st.session_state.app_step = "results"
         
         db_repository.update_calculation_data(
             calc_id=st.session_state.current_calc_id,
@@ -428,18 +433,17 @@ def select_optimizer():
             optimizer=st.session_state.optimizer_choice
         )
 
-        st.session_state.page = "results"
+        st.session_state.app_step = "results"
         st.rerun()
-
 
 def show_result_page():
 
     st.title("Ergebnisse")
         
     st.write(f"Ergebnis für ID {st.session_state.current_calc_id}:")
-    run_calculation_pipeline(st.session_state.current_calc_id)
+    render_results_page(st.session_state.current_calc_id)
 
-    # --ZUM GIFS downloaden-- 
+    # --ZUM GIFS downloaden-- -> noch in funktion auslagern
     if st.session_state.get("opt_state") == "finished":
         st.divider()
         st.subheader("Export")
@@ -466,11 +470,7 @@ def show_result_page():
                         mime="image/gif"
                     )
     # --ÄNDERUNG ENDE--
-
-    
-
     if st.button("Zurück zur Eingabe"):
-        st.session_state.page = "home"
         st.session_state.app_step = "input_form"
         st.session_state.opt_state = "pending" 
 
@@ -480,3 +480,105 @@ def show_result_page():
         #--ÄNDERUNG ENDE--
 
         st.rerun()
+
+
+def render_results_page(calc_id: int):
+    """Haupt-UI für die Ergebnisseite."""
+    
+    # 1. Daten und fertige Struktur von der Pipeline anfordern
+    structure, calc_data = get_prepared_structure(calc_id)
+
+    # 2. Verbiegung Plotten
+    st.subheader("1. Verformung des Balkens")
+    fig_bending = visualizer.plot_deformation(structure, scale_factor=1.0)
+    
+    _, center_col, _ = st.columns([1, 3, 1]) # Zentrierung des Plots
+    with center_col:
+        st.pyplot(fig_bending, use_container_width=True)
+        # schließen, damit RAM nicht voll wird
+        plt.close(fig_bending) 
+
+    # 3. Je nach Modus das Optimierer-UI laden
+    mode = calc_data.get('mode', 'bending_only')
+    if mode == 'optimization_and_bending':
+        _render_optimization_ui(structure, calc_data, calc_id)
+
+
+def _render_optimization_ui(structure, calc_data, calc_id):
+    """Baut das UI für die Optimierung auf und steuert die Buttons."""
+    st.divider()
+    st.subheader("2. Strukturoptimierung")
+
+    saved_state = calc_data.get('saved_opt_state')
+    has_saved_state = saved_state is not None
+
+    if 'opt_state' not in st.session_state:
+        st.session_state.opt_state = "pending"
+
+    col_l, col_main, col_r = st.columns([1, 4, 1])
+    
+    with col_main:
+        # Fenster für Live-Plot
+        plot_spot = st.empty() 
+        
+        # Plot-Vorschau: Aus aktueller Session oder aus DB
+        if "json_ready_state" in st.session_state and "current_opt" in st.session_state:
+            opt = st.session_state.current_opt
+            iteration = st.session_state.json_ready_state["iteration"]
+            fig = visualizer.plot_optimization_step(opt.structure, opt, st.session_state.current_opt_type, iteration)
+            plot_spot.pyplot(fig, use_container_width=True)
+            plt.close(fig)
+            
+        elif has_saved_state:
+            st.info(f"Gespeicherter Spielstand gefunden: Iteration {saved_state['iteration']}")
+
+        # Interaktions-Logik
+        state = st.session_state.get("opt_state", "pending")
+
+        if state == "pending":
+            if has_saved_state:
+                label = f"▶️ Optimierung fortsetzen (ab Iteration {saved_state['iteration']})"
+            else:
+                label = "🚀 Optimierung starten"
+                
+            if st.button(label, type="primary", use_container_width=True):
+                # Alte Generatoren sicher löschen
+                st.session_state.pop("opt_generator", None)
+                st.session_state.pop("current_opt", None)
+                
+                st.session_state.opt_state = "running"
+                st.rerun()
+
+        elif state == "running":
+            if st.button("⏸️ Pausieren", use_container_width=True):
+                st.session_state.opt_state = "stopped"
+                st.rerun()
+                
+            # live-plot starten
+            optimizer_type = calc_data.get('optimizer')
+            # hier evtl fragment und pause-button drinnen??
+            run_optimization_loop(structure, optimizer_type, plot_spot, calc_id)
+
+        elif state in ["stopped", "finished"]:
+            if state == "finished":
+                st.success("🎉 Optimierung abgeschlossen!")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if state == "stopped":
+                    if st.button("▶️ Weiterlaufen lassen", type="primary", use_container_width=True):
+                        st.session_state.opt_state = "running"
+                        st.rerun()
+                elif state == "finished":
+                    if st.button("🔄 Neustart (leert DB-Stand)", use_container_width=True):
+                        db_repository.delete_optimization_state(calc_id) 
+                        st.session_state.opt_state = "pending"
+                        st.session_state.pop("json_ready_state", None)
+                        st.session_state.pop("opt_generator", None)
+                        st.session_state.pop("current_opt", None)
+                        st.rerun()
+            
+            with col2:
+                if st.button("💾 In Datenbank speichern", use_container_width=True):
+                    db_repository.save_optimization_state(calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
+                    st.success("Zustand in TinyDB gesichert!")

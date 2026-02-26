@@ -9,9 +9,8 @@ def main():
     layout="wide",
     initial_sidebar_state="expanded"
     )
+
     # States initialiseren
-    if "page" not in st.session_state:
-        st.session_state.page = "home"
     if "current_calc_id" not in st.session_state:
         st.session_state.current_calc_id = None
     if "mode" not in st.session_state:
@@ -19,12 +18,9 @@ def main():
     if "app_step" not in st.session_state:
         st.session_state.app_step = "input_form"
 
-    # Startseite anzeigen
-    if st.session_state.page == "home":
-        components.show_home_page()
-    #Ergebnisseite anzeigen
-    elif st.session_state.page == "results":
-        components.show_result_page()
+    # UI anzeigen
+    if st.session_state.app_step:
+        components.streamlit_ui()
 
 if __name__ == "__main__":
     main()
