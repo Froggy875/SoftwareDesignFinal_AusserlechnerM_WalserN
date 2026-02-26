@@ -6,7 +6,34 @@ class StructureBuilder:
     """
     Builder-Klasse zum Erstellen von verschiedenen Strukturen
     """
-    
+    @staticmethod
+    def _connect_neighbors(structure, node_map):
+        """
+        Hilfsmethode: verbindet benachbarte Knoten mit Federn
+        """
+        # Verbindungen erstellen: alle 8 Nachbarn (wenn vorhanden)
+        neighbor_offsets = [
+            (-1, -1), (-1,  0), (-1,  1),
+            ( 0, -1),           ( 0,  1),
+            ( 1, -1), ( 1,  0), ( 1,  1),
+        ]
+        
+        # iterieren nur über tatsächlich vorhandene Knoten in der Map
+        for (i, j), current_id in node_map.items():
+            for di, dj in neighbor_offsets:
+                ni, nj = i + di, j + dj
+                
+                # Prüfen, ob der errechnete Nachbar existiert
+                if (ni, nj) in node_map:
+                    neighbor_id = node_map[(ni, nj)]
+                    
+                    # Nur verbinden, wenn Nachbar-ID größer -> vermeidet Doppelte
+                    if neighbor_id > current_id:
+                        node_i = structure.get_node(current_id)
+                        node_j = structure.get_node(neighbor_id)
+                        spring_obj = Spring(node_i, node_j)
+                        structure.add_spring(current_id, neighbor_id, spring_obj)
+
     @staticmethod
     # Statische Methode, damit für das Erstellen kein Builder-Objekt instanziiert werden muss 
     # ...und kein Zugriff über 'self' nötig ist
@@ -31,29 +58,8 @@ class StructureBuilder:
                 node_map[(i, j)] = node_id
                 node_id += 1
         
-        # Verbindungen erstellen: alle 8 Nachbarn (wenn vorhanden)
-        neighbor_offsets = [
-            (-1, -1), (-1,  0), (-1,  1),
-            ( 0, -1),           ( 0,  1),
-            ( 1, -1), ( 1,  0), ( 1,  1),
-        ]
-        
-        for i in range(n_points_h):
-            for j in range(n_points_w):
-                current_id = node_map[(i, j)]
-                
-                for di, dj in neighbor_offsets:
-                    ni, nj = i + di, j + dj
-                    
-                    if 0 <= ni < n_points_h and 0 <= nj < n_points_w:
-                        neighbor_id = node_map[(ni, nj)]
-                        
-                        # Nur verbinden, wenn Nachbar-ID größer (vermeidet Dopplungen)
-                        if neighbor_id > current_id:
-                            node_i = structure.get_node(current_id)
-                            node_j = structure.get_node(neighbor_id)
-                            spring_obj = Spring(node_i, node_j)
-                            structure.add_spring(current_id, neighbor_id, spring_obj)
+        # Nachbarknoten mit Federn verbinden
+        StructureBuilder._connect_neighbors(structure, node_map)
         
         return structure
     
@@ -84,27 +90,7 @@ class StructureBuilder:
                     node_map[(i, j)] = node_id
                     node_id += 1
         
-        # Verbindungen/Federn erstellen: alle 8 Nachbarn
-        neighbor_offsets = [
-            (-1, -1), (-1,  0), (-1,  1),
-            ( 0, -1),           ( 0,  1),
-            ( 1, -1), ( 1,  0), ( 1,  1),
-        ]
-        
-        # iterieren nur über tatsächliche vorhandene Knoten in der Map
-        for (i, j), current_id in node_map.items():
-            for di, dj in neighbor_offsets:
-                ni, nj = i + di, j + dj
-                
-                # Prüfen, ob der errechnete Nachbar existiert
-                if (ni, nj) in node_map:
-                    neighbor_id = node_map[(ni, nj)]
-                    
-                    # Nur verbinden, wenn Nachbar-ID größer -> vermeidet Doppelte
-                    if neighbor_id > current_id:
-                        node_i = structure.get_node(current_id)
-                        node_j = structure.get_node(neighbor_id)
-                        spring_obj = Spring(node_i, node_j)
-                        structure.add_spring(current_id, neighbor_id, spring_obj)
+        # Nachbarknoten mit Federn verbinden
+        StructureBuilder._connect_neighbors(structure, node_map)
                         
         return structure
