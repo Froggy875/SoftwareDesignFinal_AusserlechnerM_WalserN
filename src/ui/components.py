@@ -107,12 +107,12 @@ def input_rectangle():
             opacity=0.5
         )
         # X-Achse bleibt normal (wächst nach rechts)
-        fig.update_xaxes(range=[0, length], title_text="Länge (cm)")
+        fig.update_xaxes(range=[0, length], title_text="Länge")
 
         # Y-Achse umdrehen: Wir starten beim höchsten Wert (z.B. 80) und gehen bis -10
         fig.update_yaxes(
             range=[width, 0], # HIER: Der größere Wert steht links!
-            title_text="Breite (cm)",
+            title_text="Breite",
             scaleanchor="x",
             scaleratio=1
         ) 
@@ -288,7 +288,7 @@ def boundary_conditions_ui():
         mode='markers',
         marker=dict(size=get_dynamic_point_size(length), color=point_colors, line=dict(width=1, color='black')),
         hoverinfo='text',
-        text=[f"X: {xi:.0f}, Y: {yi:.0f}" for xi, yi in zip(x_flat, y_flat)]
+        text=[f"X: {xi:.0f}, Z: {yi:.0f}" for xi, yi in zip(x_flat, y_flat)]
     ))
 
     buf_x = max(1, length * 0.02)
@@ -298,13 +298,13 @@ def boundary_conditions_ui():
         width=None,
         margin=dict(l=10, r=10, t=30, b=10),
         xaxis=dict(
-            title="Länge in cm", 
+            title="Länge", 
             range=[-buf_x, length + buf_x], 
             showgrid=False, 
             constrain="domain"
         ),
         yaxis=dict(
-            title="Breite in cm", 
+            title="Breite", 
             range=[buf_y + width, -buf_y], 
             showgrid=False,
             scaleanchor="x",
@@ -549,7 +549,8 @@ def show_result_page():
         with opt1:
             with st.container(border=True):
                 plot_spot = st.empty()
-                run_optimization_loop(structure, optimizer_type, plot_spot, current_calc_id)
+                with st.spinner("Berechnung lädt (kann bei großen Strukturen etwas Zeit in Anspruch nehmen)..."):
+                    run_optimization_loop(structure, optimizer_type, plot_spot, current_calc_id)
         with opt2:
             if st.button("💾 In Datenbank speichern"):
                 db_repository.save_optimization_state(current_calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
@@ -589,15 +590,16 @@ def show_result_page():
             )
     
     st.divider()
-    st.header("Verformung")
+    st.header("Verformung der ganzen Struktur")
     def1, def2 = st.columns([2,1], vertical_alignment="bottom")
     with def1:
         with st.container(border=True):
-            deformation = create_deformation_fig(structure)
-            st.pyplot(deformation, use_container_width=True)
+            initial_beam, _ = get_prepared_structure(current_calc_id)
+            initial_deformation = visualizer.plot_deformation(initial_beam, scale_factor=1.0)
+            st.pyplot(initial_deformation, use_container_width=True)
     
     with def2:
-        img_bytes = ImageExporter.get_image_bytes(deformation)
+        img_bytes = ImageExporter.get_image_bytes(initial_deformation)
         st.download_button(
             label="Bild speichern (PNG)",
             key="ganzeVerformung",
@@ -611,10 +613,6 @@ def show_result_page():
         st.session_state.app_step = "main_page"
         st.session_state.current_calc_id = None
         st.rerun() 
-        
-def create_deformation_fig(structure):
-    fig_deformation = visualizer.plot_deformation(structure, scale_factor=1.0)
-    return fig_deformation
 
 def reset_optimization_state():
     """Löscht alle spezifischen Optimierungs-Variablen aus dem Speicher."""

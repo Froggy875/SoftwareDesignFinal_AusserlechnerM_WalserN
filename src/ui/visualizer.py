@@ -27,7 +27,7 @@ def plot_deformation(structure, scale_factor=1.0, opt=None, opt_type_internal=No
                 rho = min(opt.node_states.get(u, 1.0), opt.node_states.get(v, 1.0))
 
         # 2. Unsichtbare Elemente überspringen
-        if rho < 0.1:
+        if rho < 0.5:
             continue
             
         # Knoten als "aktiv" markieren
