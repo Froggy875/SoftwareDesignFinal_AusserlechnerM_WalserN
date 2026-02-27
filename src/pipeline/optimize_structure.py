@@ -11,6 +11,8 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
     
     calc_data = get_calculation_data(calc_id)
     saved_state = calc_data.get('saved_opt_state', None)
+    # Einstellungen aus der DB laden (mit Fallback, falls keine da sind)
+    opt_settings = calc_data.get('optimizer_settings', {"target_mass_ratio": 0.4})
     # Optimizer-Initialisierung
     if 'current_opt' not in st.session_state:
         if optimizer_type == "SIMP Optimizer":
@@ -31,14 +33,13 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
         st.session_state.current_opt = opt
         st.session_state.current_opt_type = opt_type
         st.session_state.last_iteration = saved_state.get("iteration", 0) if saved_state else 0
-        #Leere Liste für die GIF-Frames initialisieren --
         st.session_state.opt_frames = []
 
         if saved_state:
             st.session_state.opt_state = "waiting"
         else:
             st.session_state.opt_state = "running"
-            st.session_state.opt_generator = opt.optimize(target_mass_ratio=0.4)
+            st.session_state.opt_generator = gen
 
     state = st.session_state.get("opt_state", "waiting")
 
@@ -55,9 +56,9 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
 
         if st.button("▶️ Optimierung fortsetzen"):
             st.session_state.opt_state = "running"
-            # Falls noch kein Generator existiert
             if 'opt_generator' not in st.session_state:
-                st.session_state.opt_generator = st.session_state.current_opt.optimize(target_mass_ratio=0.4)
+                # Auch beim Fortsetzen die Parameter dynamisch mitgeben
+                st.session_state.opt_generator = st.session_state.current_opt.optimize(**opt_settings)
             st.rerun()
             
         return

@@ -59,7 +59,7 @@ def previous_calculation_results():
     for entry in all_entries:
         label = f"Projekt{entry.doc_id} | {entry.get('project_type')} | Erstellt am {entry.get('created_date')} um {entry.get('created_time')}"
         options[label] = entry
-    col1, col2 = st.columns([1, 3], vertical_alignment="bottom")
+    col1, col2 = st.columns([3, 1], vertical_alignment="bottom")
     with col1:
         selected_label = st.selectbox("Projekt auswählen", 
             options=list(options.keys())
@@ -388,6 +388,11 @@ def show_beam_structure(length, width):
         if st.button("Verbiegung berechnen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
             st.session_state.mode = 'bending_only'
             
+            valid_force_keys = [f"{x}_{y}" for x, y in st.session_state.force_points]
+            st.session_state.forces_data = {
+                k: v for k, v in st.session_state.forces_data.items() 
+                if k in valid_force_keys
+            }
             # DB Update
             db_repository.update_calculation_data(
                 calc_id=st.session_state.current_calc_id,
@@ -403,6 +408,12 @@ def show_beam_structure(length, width):
 
     with col_btn2:
         if st.button("Optimierer hinzufügen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
+            valid_force_keys = [f"{x}_{y}" for x, y in st.session_state.force_points]
+            st.session_state.forces_data = {
+                k: v for k, v in st.session_state.forces_data.items() 
+                if k in valid_force_keys
+            }
+            
             st.session_state.app_step = "select_optimizer"
             st.rerun(scope="app")
 
@@ -521,7 +532,7 @@ def input_force_data():
         st.session_state.app_step = "select_optimizer"
         st.rerun()
 
-def select_optimizer():
+'''def select_optimizer():
     st.header("Wähle den Optimierungsalgorithmus")
 
     st.selectbox(
@@ -547,6 +558,76 @@ def select_optimizer():
             forces_data=st.session_state.forces_data,
             mode=st.session_state.mode,
             optimizer=st.session_state.optimizer_choice
+        )
+
+        st.session_state.app_step = "results"
+        st.rerun()'''
+
+def select_optimizer():
+    st.header("Wähle den Optimierungsalgorithmus")
+
+    # Auswahl des Algorithmus
+    selected_opt = st.selectbox(
+        "Algorithmus:",
+        options=["SIMP Optimizer", "ESO HardKill Optimizer", "ESO SoftKill Optimizer"],
+        key="optimizer_choice"
+    )
+
+    st.subheader("Parameter-Einstellungen")
+    
+    # Dictionary zum Sammeln der Parameter
+    opt_settings = {}
+    
+    col1, col2 = st.columns(2)
+    
+    # Dieser Parameter gilt für alle:
+    with col1:
+        opt_settings["target_mass_ratio"] = st.slider(
+            "Ziel-Massenverhältnis", min_value=0.1, max_value=0.9, value=0.4, step=0.05
+        )
+
+    # Dynamische Felder je nach Algorithmus:
+    if selected_opt == "SIMP Optimizer":
+        with col2:
+            opt_settings["max_iterations"] = st.number_input("Max Iterationen", min_value=10, max_value=200, value=40, step=10)
+        
+        col3, col4 = st.columns(2)
+        with col3:
+            opt_settings["max_penalty"] = st.slider("Max Penalty", min_value=1.0, max_value=5.0, value=3.0, step=0.1)
+        with col4:
+            opt_settings["r_min"] = st.slider("Filter-Radius (r_min)", min_value=1.0, max_value=5.0, value=1.5, step=0.1)
+
+    elif selected_opt == "ESO HardKill Optimizer":
+        with col2:
+            opt_settings["max_iterations"] = st.number_input("Max Iterationen", min_value=10, max_value=500, value=100, step=10)
+
+    elif selected_opt == "ESO SoftKill Optimizer":
+        with col2:
+            opt_settings["max_iterations"] = st.number_input("Max Iterationen", min_value=10, max_value=500, value=100, step=10)
+        
+        col3, _ = st.columns(2)
+        with col3:
+             opt_settings["r_min"] = st.slider("Filter-Radius (r_min)", min_value=1.0, max_value=5.0, value=1.5, step=0.1)
+
+    st.divider()
+
+    # Für GIF Export --
+    wants_gif = st.checkbox("Verlauf für GIF-Export aufzeichnen (kann die Berechnung leicht verlangsamen)")
+    
+    if st.button("Optimierung starten"):
+        st.session_state.mode = 'optimization_and_bending'
+        st.session_state.record_gif = wants_gif
+
+        # Parameter in die Datenbank schicken
+        db_repository.update_calculation_data(
+            calc_id=st.session_state.current_calc_id,
+            fixed_points=st.session_state.fixed_points,
+            roller_points=st.session_state.roller_points,
+            force_points=st.session_state.force_points,
+            forces_data=st.session_state.forces_data,
+            mode=st.session_state.mode,
+            optimizer=st.session_state.optimizer_choice,
+            optimizer_settings=opt_settings  # NEU HINZUGEFÜGT
         )
 
         st.session_state.app_step = "results"
@@ -632,7 +713,7 @@ def live_optimizer_ui(calc_id, structure, calc_data):
         optimizer_type = calc_data.get('optimizer')
         plot_spot = st.empty()
 
-    run_optimization_loop(structure, optimizer_type, plot_spot, calc_id)
+        run_optimization_loop(structure, optimizer_type, plot_spot, calc_id)
 
 def create_deformation_fig(structure):
     fig_deformation = visualizer.plot_deformation(structure, scale_factor=1.0)

@@ -36,7 +36,7 @@ def save_input_to_table(project_type,length, width, mask=None):
     
     return calc_id
 
-def update_calculation_data(calc_id, fixed_points, roller_points, force_points, forces_data, mode=None, optimizer=None):
+def update_calculation_data(calc_id, fixed_points, roller_points, force_points, forces_data, mode=None, optimizer=None, optimizer_settings=None):
     '''Aktualisiert einen bestehenden Datenbankeintrag mit den restlichen Wizard-Daten.'''
     
     db = DatabaseConnector()
@@ -48,7 +48,8 @@ def update_calculation_data(calc_id, fixed_points, roller_points, force_points, 
         "force_points": force_points,
         "forces_data": forces_data,
         "mode": mode,
-        "optimizer": optimizer
+        "optimizer": optimizer,
+        "optimizer_settings": optimizer_settings
     }
         
     # TinyDB updatet das Dokument mit der passenden ID
