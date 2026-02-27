@@ -40,6 +40,12 @@ class ImageImporter:
                 ymin, ymax = np.where(active_rows)[0][[0, -1]]
                 xmin, xmax = np.where(active_cols)[0][[0, -1]]
                 mask = mask[ymin:ymax+1, xmin:xmax+1]
+            
+                height, width = mask.shape
+                if height > 120 or width > 120:
+                    # Fehlerbehandlung
+                    raise ValueError(f"Struktur zu groß ({width}x{height} Pixel). Maximal 120x120 Pixelmaske.")
+            
             else:
                 # falls das Bild leer ist
                 return None
@@ -47,6 +53,10 @@ class ImageImporter:
             return mask
             
         # Fehlerbehandlung
+        # Bild zu Groß
+        except ValueError as ve:
+            raise ve 
+        # Import Error
         except Exception as e:
             print(f"Fehler beim Bildimport: {e}")
             return None
