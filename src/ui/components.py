@@ -71,6 +71,8 @@ def previous_calculation_results():
             # --Alte Bild Maske aus dem Puffer löschen-- 
             st.session_state.pop('structure_mask', None)
             st.session_state.app_step = "results"
+            # für Speicher Edge Case fix, bei "Zurück zur Startseite" Button
+            st.session_state.project_saved = True
             st.rerun()
 
     # Projekt löschen
