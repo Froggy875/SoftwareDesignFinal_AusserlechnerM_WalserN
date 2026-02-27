@@ -121,20 +121,33 @@ def save_optimization_state(calc_id: int, state_dict: dict, opt_type: str):
     
     return True
 
-def delete_optimization_state(calc_id: int):
-    """Löscht den gespeicherten Status der Optimierung in der Datenbank, 
-    indem die entsprechenden Felder geleert werden."""
+def delete_project(calc_id: int):
+    """Löscht das gesamte Projekt inkl. Optimierungsstand, Eingabedaten, Masken"""
     db = DatabaseConnector()
     table = db.get_table("inputdata")
 
-    # Felder auf None setzen, damit has_saved_state beim nächsten Laden False wird
-    update_data = {
-        "saved_opt_state": None,
-        "saved_opt_type": None
-    }
-        
-    table.update(update_data, doc_ids=[calc_id])
-    
+    # Datensatz holen
+    entry = table.get(doc_id=calc_id)
+    if entry is None:
+        return False
+
+    # Maske und Optimierungsstand löschen
+    mask_file = entry.get("mask_file")
+    opt_state_file = entry.get("opt_state_file")
+    files_to_delete = []
+    if mask_file:
+        files_to_delete.append(os.path.join(MATRIX_DIR, mask_file))
+    if opt_state_file:
+        files_to_delete.append(os.path.join(MATRIX_DIR, opt_state_file))
+    for f in files_to_delete:
+        try:
+            if os.path.exists(f):
+                os.remove(f)
+        except Exception:
+            pass
+
+    # Eintrag aus DB löschen
+    table.remove(doc_ids=[calc_id])
     return True
 
 

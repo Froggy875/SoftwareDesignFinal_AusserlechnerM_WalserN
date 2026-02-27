@@ -56,7 +56,7 @@ def previous_calculation_results():
     for entry in all_entries:
         label = f"Projekt{entry.doc_id} | {entry.get('project_type')} | Erstellt am {entry.get('created_date')} um {entry.get('created_time')}"
         options[label] = entry
-    col1, col2 = st.columns([3, 1], vertical_alignment="bottom")
+    col1, col2, col3 = st.columns([3, 1, 1], vertical_alignment="bottom")
     with col1:
         selected_label = st.selectbox("Projekt auswählen", 
             options=list(options.keys())
@@ -64,7 +64,7 @@ def previous_calculation_results():
         # Den passenden Datensatz heraussuchen
         selected_data = options[selected_label]
 
-    #Auswahl laden
+    # Auswahl laden
     with col2:
         if st.button("Projekt laden"):
             st.session_state.current_calc_id = selected_data.doc_id
@@ -72,6 +72,16 @@ def previous_calculation_results():
             st.session_state.pop('structure_mask', None)
             st.session_state.app_step = "results"
             st.rerun()
+
+    # Projekt löschen
+    with col3:
+        if st.button("Projekt löschen"):
+            if selected_data is not None and hasattr(selected_data, 'doc_id'):
+                db_repository.delete_project(selected_data.doc_id)
+                st.success("Projekt gelöscht.")
+                st.rerun()
+            else:
+                st.warning("Kein Projekt ausgewählt")
 
 def new_project_ui():
     st.divider()
@@ -361,7 +371,7 @@ def boundary_conditions_ui():
             col1, col2 = st.columns(2)
             
             with col1:
-                mag = st.number_input("Kraft (N)", min_value=0.0, value=1.0, step=0.1, key=f"mag_{x}_{y}")
+                mag = st.number_input("Kraft (N)", min_value=0.0, value=0.1, step=0.1, key=f"mag_{x}_{y}")
             with col2:
                 angle = st.number_input("Winkel (°)", value=0, step=1, key=f"angle_{x}_{y}")
             
@@ -471,7 +481,7 @@ def select_optimizer():
     # Dieser Parameter gilt für alle:
     with col1:
         opt_settings["target_mass_ratio"] = st.slider(
-            "Ziel-Massenverhältnis", min_value=0.1, max_value=0.9, value=0.4, step=0.05
+            "Ziel-Massenverhältnis", min_value=0.1, max_value=0.99, value=0.4, step=0.05
         )
 
     # Dynamische Felder je nach Algorithmus:
@@ -552,9 +562,10 @@ def show_result_page():
                 with st.spinner("Berechnung lädt (kann bei großen Strukturen etwas Zeit in Anspruch nehmen)..."):
                     run_optimization_loop(structure, optimizer_type, plot_spot, current_calc_id)
         with opt2:
-            if st.button("💾 In Datenbank speichern"):
+            if st.button("💾 In Datenbank speichern", key="save_to_db"):
                 db_repository.save_optimization_state(current_calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
                 st.success("Zustand in TinyDB gesichert!")
+                st.session_state.project_saved = True
 
             if 'final_png_bytes' in st.session_state:
                 st.download_button(
@@ -608,11 +619,21 @@ def show_result_page():
             mime="image/png"
         )
 
-    if st.button("🏠 Zurück zur Startseite"):
-        reset_optimization_state() # 1. Speicher aufräumen
+    # Tracken, ob gespeichert wurde
+    if 'project_saved' not in st.session_state:
+        st.session_state.project_saved = False
+
+    if st.button("🏠 Zurück zur Startseite", key="back_to_main"):
+        current_calc_id = st.session_state.get("current_calc_id")
+        # Projekt nur löschen, wenn nicht gespeichert
+        if current_calc_id is not None and not st.session_state.project_saved:
+            db_repository.delete_project(current_calc_id)
+        reset_optimization_state() # Speicher aufräumen
         st.session_state.app_step = "main_page"
         st.session_state.current_calc_id = None
-        st.rerun() 
+        st.session_state.project_saved = False
+        st.rerun()
+
 
 def reset_optimization_state():
     """Löscht alle spezifischen Optimierungs-Variablen aus dem Speicher."""
