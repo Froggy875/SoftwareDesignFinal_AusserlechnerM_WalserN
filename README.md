@@ -177,7 +177,7 @@ Verforumg der SIMP Optimierung:
 Verformung der nicht optimierten Struktur:
 ![alt text](readme_images/deformation_initial_beam.png)
 
-## Kurzüberblick zu Implemtieren features
+## Kurzüberblick zu implemetierten Features
 
 ### Minimalanforderungen
 * Eine Python-Anwendung mit Web-UI (streamlit) soll entwickelt ☑️
