@@ -8,26 +8,28 @@ from image_io.image_exporter import ImageExporter
 
 def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
     """Führt die Schleife aus und schreibt in den übergebenen Placeholder."""
-    
+    #Eingabedaten laden, falls Optimierungsfortschritt gespeichert, wird er auch geladen
     calc_data = get_calculation_data(calc_id)
     saved_state = calc_data.get('saved_opt_state', None)
-    # Einstellungen aus der DB laden (mit Fallback, falls keine da sind)
+    
+    # Optimierersettings aus der DB laden (mit Fallback, falls keine da sind)
     opt_settings = calc_data.get('optimizer_settings', {"target_mass_ratio": 0.4})
+   
     # Optimizer-Initialisierung
     if 'current_opt' not in st.session_state:
         if optimizer_type == "SIMP Optimizer":
             opt = SIMP_Optimizer(structure, initial_state=saved_state)
-            gen = opt.optimize(target_mass_ratio=0.4)
+            gen = opt.optimize(**opt_settings)
             opt_type = "SIMP"
             
         elif "HardKill" in optimizer_type:
             opt = ESO_HardKill_Optimizer(structure, initial_state=saved_state)
-            gen = opt.optimize(target_mass_ratio=0.4)
+            gen = opt.optimize(**opt_settings)
             opt_type = "HARD_KILL"
             
         else:
             opt = ESO_SoftKill_Optimizer(structure, initial_state=saved_state)
-            gen = opt.optimize(target_mass_ratio=0.4)
+            gen = opt.optimize(**opt_settings)
             opt_type = "SOFT_KILL"
         
         st.session_state.current_opt = opt
@@ -42,7 +44,7 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
             st.session_state.opt_generator = gen
 
     state = st.session_state.get("opt_state", "waiting")
-
+    # wenn Optimierungsstand gespeichert, wird dieser statisch angezeigt und kann dann fortgesetzt werden mit Button
     if state in ["waiting", "stopped"]:
         # 1. Statisches Bild vom aktuellen Stand zeigen
         fig = plot_optimization_step(
@@ -60,9 +62,10 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
                 # Auch beim Fortsetzen die Parameter dynamisch mitgeben
                 st.session_state.opt_generator = st.session_state.current_opt.optimize(**opt_settings)
             st.rerun()
+
             
         return
-    
+    # sonst wird Optimierung gleich gestartet
     if state =="running":
         if st.button("🛑 Stop"):
             st.session_state.opt_state = "stopped"
@@ -81,6 +84,7 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
                 frame = ImageExporter.fig_to_pil(fig)
                 st.session_state.opt_frames.append(frame)
 
+            # Plot immer zum download zur verfügung stellen
             plot_placeholder.pyplot(fig, use_container_width=True)
             st.session_state.final_png_bytes = ImageExporter.get_image_bytes(fig)
             plt.close(fig)
@@ -88,6 +92,7 @@ def run_optimization_loop(structure, optimizer_type, plot_placeholder, calc_id):
             # Kleines Delay, damit Streamlit UI-Updates zulässt
             time.sleep(0.02)
 
+        # wenn Optimierung abgeschlossen, generator löschen
         st.session_state.opt_state = "finished"
         if 'opt_generator' in st.session_state:
             del st.session_state.opt_generator

@@ -26,13 +26,10 @@ def streamlit_ui():
     elif st.session_state.app_step == "boundary_conditions":
         boundary_conditions_ui()
 
-    # 3. Kraftbetrag und Angriffswinkel eingeben
-    elif st.session_state.app_step == "input_forces":
-        input_force_data()
-
     # 4. Falls in Schritt 3 gewünscht, dann Optimierer auswählen
     elif st.session_state.app_step == "select_optimizer":
         select_optimizer()
+
     #5. Ergebnisseite anzeigen
     elif st.session_state.app_step == "results":
         show_result_page()
@@ -98,9 +95,7 @@ def input_rectangle():
     with col2:
         length = st.slider("Länge", min_value=1, max_value=120, value=20, step=1)
         width = st.slider("Breite", min_value=1, max_value=120, value=10, step=1)
-
-    #_, col_plot_mitte, _ = st.columns([1,2,1])
-    #with col_plot_mitte:    
+ 
         fig = go.Figure()
 
         fig.add_shape(
@@ -216,17 +211,16 @@ def draw_structure():
                 st.rerun()
     #--PROVISORIUM ENDE--
 
+@st.fragment
 def boundary_conditions_ui():
     st.subheader("Randbedingungen & Belastung")
-    show_beam_structure(st.session_state.beam_length, st.session_state.beam_width)
-
-@st.fragment
-def show_beam_structure(length, width):
-
     # 1. Initialisierung der benötigten States
     if 'force_points' not in st.session_state: st.session_state.force_points = []
     if 'fixed_points' not in st.session_state: st.session_state.fixed_points = []
     if 'roller_points' not in st.session_state: st.session_state.roller_points = []
+
+    length = st.session_state.beam_length
+    width = st.session_state.beam_width
 
     # 2. Werkzeugauswahl
     st.subheader("Struktur definieren")
@@ -292,14 +286,15 @@ def show_beam_structure(length, width):
         x=x_flat,
         y=y_flat,
         mode='markers',
-        marker=dict(size=10, color=point_colors, line=dict(width=1, color='black')),
+        marker=dict(size=get_dynamic_point_size(length), color=point_colors, line=dict(width=1, color='black')),
         hoverinfo='text',
         text=[f"X: {xi:.0f}, Y: {yi:.0f}" for xi, yi in zip(x_flat, y_flat)]
     ))
 
-    buf_x = max(1, length * 0.05)
-    buf_y = max(1, width * 0.05)
+    buf_x = max(1, length * 0.02)
+    buf_y = max(1, width * 0.02)
     fig.update_layout(
+        height = get_dynamic_plot_height(length, width),
         width=None,
         margin=dict(l=10, r=10, t=30, b=10),
         xaxis=dict(
@@ -385,7 +380,7 @@ def show_beam_structure(length, width):
     
     with col_btn1:
         # Button ist nur aktiv, wenn es mindestens eine Kraft gibt
-        if st.button("Verbiegung berechnen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
+        if st.button("Verformung berechnen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
             st.session_state.mode = 'bending_only'
             
             valid_force_keys = [f"{x}_{y}" for x, y in st.session_state.force_points]
@@ -417,24 +412,21 @@ def show_beam_structure(length, width):
             st.session_state.app_step = "select_optimizer"
             st.rerun(scope="app")
 
-def get_dynamic_plot_height(min_height=300, max_height=1200):
+def get_dynamic_plot_height(length, width,min_height=300, max_height=1000):
         """
-        Berechnet die optimale Pixel-Höhe für den Plotly-Graphen, 
-        damit er die Streamlit-Spalte ohne weiße Ränder ausfüllt.
+        Berechnet die optimale Pixel-Höhe für den Plotly-Graphen
         """
-        length = st.session_state.beam_length
-        width = st.session_state.beam_width
+        
         if length == 0: # Sicherheitscheck
             return min_height
             
-        # Wir nehmen an, deine Streamlit-Spalte ist ca. 700 Pixel breit.
-        # Das Verhältnis von Breite zu Länge bestimmt die nötige Höhe.
+        # Verhältnis von Breite zu Länge bestimmt die Höhe.
         ratio = width / length
         
-        # 700px Grundbreite * Seitenverhältnis + 80px für Ränder/Titel
+        # Annahme: 700px Grundbreite, 80px für Schrift
         calculated_height = int(700 * ratio) + 80
         
-        # Begrenzen, damit der Plot nicht winzig klein oder gigantisch groß wird
+        # Begrenzen, damit der Plot nicht sehr klein oder sehr groß wird
         if calculated_height < min_height:
             return min_height
         elif calculated_height > max_height:
@@ -444,124 +436,20 @@ def get_dynamic_plot_height(min_height=300, max_height=1200):
 
 def get_dynamic_point_size(length, plot_width_px=650):
     """
-    Berechnet die optimale Punktgröße (Marker Size) in Plotly, 
-    damit die Quadrate eine geschlossene Fläche bilden.
+    Berechnet die optimale Punktgröße in Plotly
     """
     if length <= 0:
         return 5
-        
-    # Wie viele Punkte liegen tatsächlich nebeneinander?
+
     num_points_x = length
     
-    # Verfügbare Pixel durch Anzahl der Punkte teilen
-    # (Wir gehen von ca. 650 nutzbaren Pixeln in der Streamlit-Spalte aus)
+    # Verfügbare Pixel durch Anzahl der Punkte teilen -> Annahme 650px
     ideal_size = plot_width_px / num_points_x
     
-    # Wir machen die Punkte minimal größer (Faktor 1.05), 
-    # damit sie sicher überlappen und keine weißen Blitzer entstehen.
     calculated_size = ideal_size * 1.05
     
-    # Grenzen setzen: Nicht unsichtbar klein (< 1.5) und nicht gigantisch groß (> 50)
-    return max(1.5, min(calculated_size, 20))
-
-def input_force_data():
-    st.header("Kräfte definieren")
-    st.info("Konvention: 0° = nach unten | -90° = nach links | 90° = nach rechts")
-
-    # Dictionary für die Werte vorbereiten
-    if 'forces_data' not in st.session_state:
-        st.session_state.forces_data = {}
-
-    # Warnung, falls im Wizard gar keine roten Punkte gewählt wurden
-    if len(st.session_state.force_points) == 0:
-        st.warning("Du hast keine Kraftangriffspunkte (Rot) ausgewählt.")
-        st.session_state.app_step = "select_nodes"
-        st.rerun()
-
-    # Eingabefelder für jeden Punkt generieren
-    for i, pt in enumerate(st.session_state.force_points):
-        x, y = pt
-        
-        st.markdown(f"**Punkt {i+1} (X: {x:.0f}, Y: {y:.0f})**")
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            mag = st.number_input(
-                "Kraft (N)", 
-                min_value=0.0, 
-                value=1.0, 
-                step=0.1, 
-                key=f"mag_{x}_{y}"
-            )
-        with col2:
-            angle = st.number_input(
-                "Winkel (°)", 
-                value=0, 
-                step=1, 
-                key=f"angle_{x}_{y}"
-            )
-        
-        #Key für jede Kraftkomponente
-        pt_key_str = f"{x}_{y}"
-
-        angle_rad = math.radians(angle)
-
-        force_x = round(mag * math.sin(angle_rad), 4)  # X-Komponente
-        force_y = round(mag * math.cos(angle_rad), 4)  # Y-Komponente
-        # Werte direkt in den State schreiben
-        st.session_state.forces_data[pt_key_str] = [force_x, force_y]
-        
-    st.divider()
-    
-    # Der nächste Übergang
-    if st.button("Verbiegung berechnen"):
-        st.session_state.mode = 'bending_only'
-        st.session_state.app_step = "results"
-        
-        db_repository.update_calculation_data(
-            calc_id=st.session_state.current_calc_id,
-            fixed_points=st.session_state.fixed_points,
-            roller_points=st.session_state.roller_points,
-            force_points=st.session_state.force_points,
-            forces_data=st.session_state.forces_data,
-            mode=st.session_state.mode
-        )
-        st.rerun()
-
-    if st.button("Optimierer hinzufügen"):
-        st.session_state.app_step = "select_optimizer"
-        st.rerun()
-
-'''def select_optimizer():
-    st.header("Wähle den Optimierungsalgorithmus")
-
-    st.selectbox(
-        "Algorithmus:",
-        options=["SIMP Optimizer", "ESO HardKill Optimizer", "ESO SoftKill Optimizer"],
-        key="optimizer_choice"
-    )
-
-    # Für GIF Export --
-    wants_gif = st.checkbox("Verlauf für GIF-Export aufzeichnen (kann die Berechnung leicht verlangsamen)")
-    
-    if st.button("Verformung berechnen"):
-        st.session_state.mode = 'optimization_and_bending'
-
-        # Checkbox State speichern --
-        st.session_state.record_gif = wants_gif
-
-        db_repository.update_calculation_data(
-            calc_id=st.session_state.current_calc_id,
-            fixed_points=st.session_state.fixed_points,
-            roller_points=st.session_state.roller_points,
-            force_points=st.session_state.force_points,
-            forces_data=st.session_state.forces_data,
-            mode=st.session_state.mode,
-            optimizer=st.session_state.optimizer_choice
-        )
-
-        st.session_state.app_step = "results"
-        st.rerun()'''
+    # size ncht größer als 15 oder kleiner als 3
+    return max(3, min(calculated_size, 15))
 
 def select_optimizer():
     st.header("Wähle den Optimierungsalgorithmus")
@@ -641,24 +529,21 @@ def show_result_page():
         reset_optimization_state() 
         st.session_state.last_viewed_calc_id = current_calc_id
 
-    
-
     if "saved_structure" not in st.session_state or st.session_state.get("struct_calc_id") != current_calc_id:
         structure, calc_data = get_prepared_structure(current_calc_id)
-        deformation = create_deformation_fig(structure)
+        
 
         st.session_state.saved_structure = structure
         st.session_state.saved_calc_data = calc_data
         st.session_state.struct_calc_id = current_calc_id
-        st.session_state.deformation_plot = deformation
     else:
         structure = st.session_state.saved_structure
         calc_data = st.session_state.saved_calc_data
-        deformation = st.session_state.deformation_plot
 
     mode = calc_data.get('mode', 'bending_only')
+    optimizer_type = calc_data.get('optimizer', None)
     if mode == 'optimization_and_bending':
-        optimizer_type = calc_data.get('optimizer')
+        
         st.header("Rechenvorgang")
         opt1, opt2 = st.columns([2,1], vertical_alignment="bottom")
         with opt1:
@@ -687,18 +572,35 @@ def show_result_page():
                         file_name=f"topologie_verlauf_{st.session_state.current_calc_id}.gif",
                         mime="image/gif"
                     )
+        vis1, vis2 = st.columns([2,1], vertical_alignment="bottom")
+        with vis1:
+            with st.container(border=True):
+                deformation = visualizer.plot_deformation(structure,  opt=st.session_state.current_opt, opt_type_internal=st.session_state.current_opt_type)
+                st.pyplot(deformation, use_container_width=True)
+                plt.close(deformation)
+
+        with vis2:
+            img_bytes = ImageExporter.get_image_bytes(deformation)
+            st.download_button(
+                label="Bild speichern (PNG)",
+                data=img_bytes,
+                file_name=f"deformation_{current_calc_id}.png",
+                mime="image/png"
+            )
     
     st.divider()
     st.header("Verformung")
     def1, def2 = st.columns([2,1], vertical_alignment="bottom")
     with def1:
         with st.container(border=True):
+            deformation = create_deformation_fig(structure)
             st.pyplot(deformation, use_container_width=True)
     
     with def2:
         img_bytes = ImageExporter.get_image_bytes(deformation)
         st.download_button(
             label="Bild speichern (PNG)",
+            key="ganzeVerformung",
             data=img_bytes,
             file_name=f"deformation_{current_calc_id}.png",
             mime="image/png"
@@ -710,7 +612,6 @@ def show_result_page():
         st.session_state.current_calc_id = None
         st.rerun() 
         
-
 def create_deformation_fig(structure):
     fig_deformation = visualizer.plot_deformation(structure, scale_factor=1.0)
     return fig_deformation

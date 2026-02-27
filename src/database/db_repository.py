@@ -37,7 +37,7 @@ def save_input_to_table(project_type,length, width, mask=None):
     return calc_id
 
 def update_calculation_data(calc_id, fixed_points, roller_points, force_points, forces_data, mode=None, optimizer=None, optimizer_settings=None):
-    '''Aktualisiert einen bestehenden Datenbankeintrag mit den restlichen Wizard-Daten.'''
+    '''Aktualisiert einen bestehenden Datenbankeintrag mit den restlichen Nutzereingaben.'''
     
     db = DatabaseConnector()
     table = db.get_table("inputdata")
@@ -60,7 +60,7 @@ def update_calculation_data(calc_id, fixed_points, roller_points, force_points, 
 def get_calculation_data(calc_id: int) -> dict:
     """Holt alle Daten zu einer ID, inklusive der verknüpften Matrix."""
 
-    if calc_id is None:
+    if calc_id is None: #Sicherheitscheck
         return None
     
     db = DatabaseConnector()
@@ -76,7 +76,7 @@ def get_calculation_data(calc_id: int) -> dict:
     if "mask_file" in data:
         file_path = os.path.join(MATRIX_DIR, data["mask_file"])
         
-        # 3. Datei laden und die Matrix nahtlos an das Dictionary anhängen
+        # 3. Datei laden und die Matrix an das Dictionary anhängen
         if os.path.exists(file_path):
             geladene_npz = np.load(file_path)
             data["mask"] = geladene_npz["mask_matrix"]

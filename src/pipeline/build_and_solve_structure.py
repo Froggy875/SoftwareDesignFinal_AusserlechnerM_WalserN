@@ -12,7 +12,7 @@ def build_and_solve_structure(calc_data):
     # Struktur erstellen
     structure = StructureBuilder.create_rectangle(n_points_w=int(length), n_points_h=int(width))
 
-    # --PROVISORIUM ZUM BILDER HOCHLADEN-- 
+    # --Zum Bilder hochladen--
     # Puffer-Maske aus dem Dictionary holen ...falls vorhanden
     mask = calc_data.get('mask', None)
 
@@ -23,9 +23,8 @@ def build_and_solve_structure(calc_data):
     else:
         # Standard Weg für manuell eingegebene Maße
         structure = StructureBuilder.create_rectangle(n_points_w=int(length), n_points_h=int(width))
-    # --PROVISORIUM ENDE--
 
-    # --ANPASSUNG/VERBESSERUNG ZUM BILDER EINLESEN-- 
+    # Node-ID aus Koordinaten berechnen
     def get_node_by_coords(x, y):
         for node_id in structure.get_nodes():
             node = structure.get_node(node_id)
@@ -51,7 +50,6 @@ def build_and_solve_structure(calc_data):
         node = get_node_by_coords(int(x_str), int(y_str))
         if node:
             node.force = np.array(force_vector)
-     # --ANPASSUNG/VERBESSERUNG ZUM BILDER EINLESEN ENDE--
 
     # Berechnung durchführen
     structure.solve()

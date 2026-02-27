@@ -2,37 +2,64 @@ import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
 import numpy as np
 
-def plot_deformation(structure, scale_factor=1.0):
+def plot_deformation(structure, scale_factor=1.0, opt=None, opt_type_internal=None):
     """
     Erstellt einen Plot der unverformten und verformten Struktur.
-    Gibt das Matplotlib Figure-Objekt zurück.
+    Wenn 'opt' und 'opt_type_internal' übergeben werden, werden wegoptimierte 
+    Elemente (Dichte < 0.1) ausgeblendet.
     """
     fig, ax = plt.subplots(figsize=(5, 3))
+    
+    active_nodes = set()
 
-    # A) Unverformte Struktur (Grau) als Referenz
+    # A & B) Elemente durchgehen, ggf. filtern und zeichnen
     for edge in structure.get_edges():
+        u, v = edge
+        edge_key = tuple(sorted((u, v)))
+        rho = 1.0 
+        
+        # 1. Filter-Logik: Dichte berechnen, falls Optimierer übergeben wurde
+        if opt is not None and opt_type_internal is not None:
+            if opt_type_internal == "SIMP":
+                spring = opt.structure.get_spring(*edge_key) 
+                rho = spring.density
+            elif opt_type_internal in ["SOFT_KILL", "BESO"]:
+                rho = min(opt.node_states.get(u, 1.0), opt.node_states.get(v, 1.0))
+
+        # 2. Unsichtbare Elemente überspringen
+        if rho < 0.1:
+            continue
+            
+        # Knoten als "aktiv" markieren
+        active_nodes.add(u)
+        active_nodes.add(v)
+        
         spring = structure.get_graph().edges[edge]['data']
+        
+        # Unverformte Referenzstruktur zeichnen (Grau)
         pos_i = spring.node_i.pos
         pos_j = spring.node_j.pos
         ax.plot([pos_i[0], pos_j[0]], [pos_i[1], pos_j[1]], 'k--', linewidth=1, alpha=0.3)
 
-    # B) Verformung berechnen (blau)
-    for edge in structure.get_edges():
-        spring = structure.get_graph().edges[edge]['data']
-        
-        # Position nach Verformung berechnen
+        # Verformung berechnen
         pos_i_def = spring.node_i.pos + spring.node_i.displacement * scale_factor
         pos_j_def = spring.node_j.pos + spring.node_j.displacement * scale_factor
         
-        ax.plot([pos_i_def[0], pos_j_def[0]], [pos_i_def[1], pos_j_def[1]], 'b-', linewidth=2, alpha=0.8)
+        # Verformtes Element zeichnen (Dicke/Transparenz anpassen, wenn optimiert)
+        alpha_val = rho if (opt is not None and opt_type_internal != "HARD_KILL") else 0.8
+        line_width = 2.5 * rho if opt is not None else 2.0
+        
+        ax.plot([pos_i_def[0], pos_j_def[0]], [pos_i_def[1], pos_j_def[1]], 'b-', linewidth=line_width, alpha=alpha_val)
 
-    # C) Zeichne Knoten an der NEUEN Position
-    for node_id in structure.get_nodes():
+    # C) Knotenpunkte zeichnen
+    # Wenn wir filtern, nehmen wir nur active_nodes. Sonst alle Knoten der Struktur.
+    nodes_to_plot = active_nodes if opt is not None else structure.get_nodes()
+
+    for node_id in nodes_to_plot:
         node = structure.get_node(node_id)
-        # Und auch hier für die Knoten-Punkte:
         new_pos = node.pos + node.displacement * scale_factor
         
-        # Farbe: Rot wenn fest, Gelb wenn Rolle, Grün wenn Kraft drauf, sonst Blau
+        # Farbe bestimmen
         color = 'blue'
         if node.fixed[0] != node.fixed[1]: 
             color = 'yellow'  # Rollenlager
@@ -46,16 +73,17 @@ def plot_deformation(structure, scale_factor=1.0):
     # D) Plot-Einstellungen
     ax.set_xlabel('X')
     ax.set_ylabel('Y')
-    ax.set_title(f'Verformung (Skalierung: {scale_factor}x)\nRot=Festlager, Gelb=Loslager, Grün=Kraft')
+    
+    # Titel dynamisch anpassen
+    title_suffix = f" (Optimiert: {opt_type_internal})" if opt else ""
+    ax.set_title(f'Verformung{title_suffix} (Skalierung: {scale_factor}x)\nRot=Fest, Gelb=Los, Grün=Kraft')
+    
     ax.grid(True, alpha=0.3)
     ax.axis('equal')
-    
-    # Y-Achse invertieren (da positive y-Achse runter zeigt)
     ax.invert_yaxis() 
     
     plt.tight_layout()
     return fig
-
 
 def plot_optimization_step(structure, opt, opt_type_internal, iteration):
     """
@@ -114,7 +142,7 @@ def plot_optimization_step(structure, opt, opt_type_internal, iteration):
     ax.autoscale() 
     ax.set_aspect('equal')
     ax.invert_yaxis()
-    ax.set_title(f"Topologie: {opt_type_internal} | Iteration: {iteration} (Elemente: {visible_elements})")
+    ax.set_title(f"Topologie: {opt_type_internal} | Iteration: {iteration+1} (Elemente: {visible_elements})")
     ax.set_xlabel("X")
     ax.set_ylabel("Y")
     
