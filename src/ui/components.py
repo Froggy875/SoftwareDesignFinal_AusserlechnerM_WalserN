@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 from pipeline.optimize_structure import run_optimization_loop
 from image_io.image_importer import ImageImporter
 
-
 def streamlit_ui():
     '''Erzeugt das User-Interface und steuert den Ablauf'''
     st.title("Structure Designer")
@@ -155,31 +154,39 @@ def input_rectangle():
 
 def upload_image():
     st.subheader("Eigene Struktur als Bild hochladen")
-    uploaded_file = st.file_uploader("Bild auswählen", type=['png', 'jpg', 'jpeg'], width=300)
+    uploaded_file = st.file_uploader("Bild auswählen", type=['png', 'jpg', 'jpeg'])
 
     if uploaded_file is not None:
-        # Bild direkt über das uploaded_file Objekt verarbeiten
-        mask = ImageImporter.create_mask(uploaded_file, dark_is_material=True)        
-        if mask is not None:
-            img_length = mask.shape[1]
-            img_width = mask.shape[0]
+        try:
+            # Bild direkt über das uploaded_file Objekt verarbeiten
+            mask = ImageImporter.create_mask(uploaded_file, dark_is_material=True)        
             
-            if st.button("Balken aus Bild generieren"):
-                # Maske in die DB speichern
-                calc_id = db_repository.save_input_to_table(project_type="Upload", length=img_length, width=img_width, mask=mask)                
+            if mask is not None:
+                img_length = mask.shape[1]
+                img_width = mask.shape[0]
                 
-                # Werte für die UI-Navigation im State speichern
-                st.session_state.current_calc_id = calc_id
-                st.session_state.beam_length = img_length
-                st.session_state.beam_width = img_width
-                
-                # Arrays leeren und weiter
-                st.session_state.force_points = []
-                st.session_state.fixed_points = []
-                st.session_state.roller_points = [] 
-                st.session_state.vertical_roller_points = []
-                st.session_state.app_step = "boundary_conditions"
-                st.rerun()
+                if st.button("Balken aus Bild generieren"):
+                    # Maske in die DB speichern
+                    calc_id = db_repository.save_input_to_table(project_type="Upload", length=img_length, width=img_width, mask=mask)                
+                    
+                    # Werte für die UI-Navigation im State speichern
+                    st.session_state.current_calc_id = calc_id
+                    st.session_state.beam_length = img_length
+                    st.session_state.beam_width = img_width
+                    
+                    # Arrays leeren und weiter
+                    st.session_state.force_points = []
+                    st.session_state.fixed_points = []
+                    st.session_state.roller_points = [] 
+                    st.session_state.vertical_roller_points = []
+                    st.session_state.app_step = "boundary_conditions"
+                    st.rerun()
+
+        # Fehler für Bild zu groß und generischer Fehler            
+        except ValueError as ve:
+            st.error(str(ve))
+        except Exception as e:
+            st.error(str(e))
     # --PROVISORIUM ENDE--
 
 def draw_structure():
@@ -395,13 +402,20 @@ def boundary_conditions_ui():
             # Direkt im State speichern
             st.session_state.forces_data[pt_key_str] = [force_x, force_y]
 
-    #6. Abschlussbutton und in DB speichern
+    # 6. Abschlussbutton und in DB speichern
     st.divider()
+    
+    has_forces = len(st.session_state.force_points) > 0
+    has_supports = (len(st.session_state.fixed_points) + 
+                    len(st.session_state.roller_points) + 
+                    len(st.session_state.vertical_roller_points)) > 0
+    buttons_disabled = not (has_forces and has_supports)
+
     col_btn1, col_btn2 = st.columns(2)
     
     with col_btn1:
-        # Button ist nur aktiv, wenn es mindestens eine Kraft gibt
-        if st.button("Verformung berechnen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
+        # Button ist nur aktiv, wenn es mindestens eine Kraft und ein Lager gibt
+        if st.button("Verformung berechnen", disabled=buttons_disabled, use_container_width=True):
             st.session_state.mode = 'bending_only'
             
             valid_force_keys = [f"{x}_{y}" for x, y in st.session_state.force_points]
@@ -424,7 +438,7 @@ def boundary_conditions_ui():
             st.rerun(scope="app") # alles laden
 
     with col_btn2:
-        if st.button("Optimierer hinzufügen", disabled=len(st.session_state.force_points) == 0, use_container_width=True):
+        if st.button("Optimierer hinzufügen", disabled=buttons_disabled, use_container_width=True):
             valid_force_keys = [f"{x}_{y}" for x, y in st.session_state.force_points]
             st.session_state.forces_data = {
                 k: v for k, v in st.session_state.forces_data.items() 
