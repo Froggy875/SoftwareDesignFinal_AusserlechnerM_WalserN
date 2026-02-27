@@ -106,7 +106,7 @@ In jedem Iterationsschritt wird das globale Gleichungssystem $K \cdot u = F$ gel
 # Beispiel Messerschmitt mit Bölkow–Blohm Balken
 ![alt text](readme_images/topologie_final_hardkill.png)
 ![alt text](readme_images/topologie_verlauf_hardkill.gif)
-<sub>*Settings: Dimension=120x20; RB: 4x0,1N nach unten in der Mitte, Loslager Links, Festlager Rechts; Masserverhältnis=0.4, Max It 100*</sub>
+<sub>*Settings: Dimension=120x20; RB: 4x0.1N nach unten in der Mitte, Loslager Links, Festlager Rechts; Masserverhältnis=0.4, Max It 100*</sub>
 
 
 ## ESO_Softkill_Optimizer: Evolutionary Structural Optimization SoftKill Optimizer
@@ -121,7 +121,7 @@ Da die Dimension der Steifigkeitsmatrix $K$ dabei konstant bleibt, werden Singul
 # Beispiel Messerschmitt mit Bölkow–Blohm Balken
 ![alt text](readme_images/topologie_final_softkill.png) 
 ![alt text](readme_images/topologie_verlauf_softkill.gif)
-<sub>*Settings: Dimension=80x20; RB: 4x0,1N nach unten in der Mitte, Loslager Links, Festlager Rechts; Masserverhältnis=0.4, Max It 40, Filter-Radius 1.50*</sub>
+<sub>*Settings: Dimension=80x20; RB: 4x0.1N nach unten in der Mitte, Loslager Links, Festlager Rechts; Masserverhältnis=0.4, Max It 40, Filter-Radius 1.50*</sub>
 
 ## SIMP_Optimizer: Solid Isotropic Material with Penalization
 ![UML Diagram](https://www.plantuml.com/plantuml/png/VLJBRjim4BmRy3_iAP0AEKskJfCcJMgqIFD07RH0KC2WhRMqCBaKICfv_4ml-GQVUjEFTIahZjr3Bu9iScPdPyO-zK6vK1lTx_a5SQMSCf3ZNDKwtE5ZEDDKi44EC9C7kdvFBaP8lySs83WgIda7kBELrROWj5KWG-XgBY0PVxswJUFnRIH68HZ2bSrHwmpk2VNIwbhO8H7A0iF4AEydJWMoQGP6FKugPAN3KmOZqe9sAgVQG-8cXhWbFkEvTNaxxfKQF9bQYuIfShjZdX_suG3su3231H8ZZ8cBMYj7eNa9o97mllOqApl2cswPW8Am78Xh-QJZ1RYGPy1bF2JTRYkQo2YDSArcfLWnfKB6X5Rd5z9pNxXcrVn67i9OGFFriJSgE7hCm3Kl4aGxl5itWp6ofq3BJc06trJX51Suk9A4gDAqKC5ABCWvn4HYGCFE1v4JI6doeZcQF8x1vQriXkCTPpo6P-Jqg8L_tmZXJWWihPiA2KLavtvxrs65gYt0y7OTrM2a5g88Aa1NDgl8aKp9RwUPIWGNdGmb8r3oOsZ-o8G2fyX7aQ_bl8HtK8lK4R1OAg-wMVdj2__u0ydPL8lA64T-_ZvtfKr1IMD-e9EU6FbUu3A64E8-ivB_nsOeRALYNiqej1o7RU0rrhXPIL01jOURyq4SgyhM_4_aSI75vbGcUwcLsIROsB48zLjYUz6rTQNM5veNphkVrdaPQv3khF6Q1poK99Zaql8oUihFm14laKY6ylBn5tS4S78C1_i7Xo2LYQ5zs0ag1Kak-IahI8a79p1Isi_ATKi-nx2Ol4TOadzJVRJ-Zx1LltSghHJp_W80)
@@ -162,7 +162,7 @@ Die Update-Regel benötigt einen konkreten Wert für $\lambda$, dieser ist jedoc
 # Beispiel mit Messerschmitt Bölkow–Blohm Balken
 ![alt text](readme_images/topologie_final_simp.png) 
 ![alt text](readme_images/topologie_verlauf_simp.gif)
-<sub>*Settings: Dimension=120x20; RB: 4x0,1N nach unten in der Mitte, Loslager Links, Festlager Rechts; Masserverhältnis=0.4, Max It 40, Filter-Radius 1.50, Max Penalty 3.0*</sub>
+<sub>*Settings: Dimension=120x20; RB: 4x0.1N nach unten in der Mitte, Loslager Links, Festlager Rechts; Masserverhältnis=0.4, Max It 40, Filter-Radius 1.50, Max Penalty 3.0*</sub>
 
 ## Ergebnisse
 Verformung der ESO Hardkill Optimierung:
