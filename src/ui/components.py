@@ -656,34 +656,37 @@ def show_result_page():
         calc_data = st.session_state.saved_calc_data
         deformation = st.session_state.deformation_plot
 
-    
-    st.header("Rechenvorgang")
-    opt1, opt2 = st.columns([2,1], vertical_alignment="bottom")
-    with opt1:
-        with st.container(border=True):
-            live_optimizer_ui(current_calc_id, structure, calc_data)
-    with opt2:
-        if st.button("💾 In Datenbank speichern"):
-            db_repository.save_optimization_state(current_calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
-            st.success("Zustand in TinyDB gesichert!")
+    mode = calc_data.get('mode', 'bending_only')
+    if mode == 'optimization_and_bending':
+        optimizer_type = calc_data.get('optimizer')
+        st.header("Rechenvorgang")
+        opt1, opt2 = st.columns([2,1], vertical_alignment="bottom")
+        with opt1:
+            with st.container(border=True):
+                plot_spot = st.empty()
+                run_optimization_loop(structure, optimizer_type, plot_spot, current_calc_id)
+        with opt2:
+            if st.button("💾 In Datenbank speichern"):
+                db_repository.save_optimization_state(current_calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
+                st.success("Zustand in TinyDB gesichert!")
 
-        if 'final_png_bytes' in st.session_state:
-            st.download_button(
-                label="Bild speichern (PNG)",
-                data=st.session_state.final_png_bytes,
-                file_name=f"topologie_final_{current_calc_id}.png",
-                mime="image/png"
-            )
-        # GIF nur anbieten, wenn Checkbox aktiv war und Frames da sind
-        if 'opt_frames' in st.session_state and len(st.session_state.opt_frames) > 0:
-            gif_bytes = ImageExporter.get_gif_bytes(st.session_state.opt_frames, duration=150)
-            if gif_bytes:
+            if 'final_png_bytes' in st.session_state:
                 st.download_button(
-                    label="Verlauf speichern (GIF)",
-                    data=gif_bytes,
-                    file_name=f"topologie_verlauf_{st.session_state.current_calc_id}.gif",
-                    mime="image/gif"
+                    label="Bild speichern (PNG)",
+                    data=st.session_state.final_png_bytes,
+                    file_name=f"topologie_final_{current_calc_id}.png",
+                    mime="image/png"
                 )
+            # GIF nur anbieten, wenn Checkbox aktiv war und Frames da sind
+            if 'opt_frames' in st.session_state and len(st.session_state.opt_frames) > 0:
+                gif_bytes = ImageExporter.get_gif_bytes(st.session_state.opt_frames, duration=150)
+                if gif_bytes:
+                    st.download_button(
+                        label="Verlauf speichern (GIF)",
+                        data=gif_bytes,
+                        file_name=f"topologie_verlauf_{st.session_state.current_calc_id}.gif",
+                        mime="image/gif"
+                    )
     
     st.divider()
     st.header("Verformung")
@@ -706,14 +709,7 @@ def show_result_page():
         st.session_state.app_step = "main_page"
         st.session_state.current_calc_id = None
         st.rerun() 
-
-def live_optimizer_ui(calc_id, structure, calc_data):
-    mode = calc_data.get('mode', 'bending_only')
-    if mode == 'optimization_and_bending':
-        optimizer_type = calc_data.get('optimizer')
-        plot_spot = st.empty()
-
-        run_optimization_loop(structure, optimizer_type, plot_spot, calc_id)
+        
 
 def create_deformation_fig(structure):
     fig_deformation = visualizer.plot_deformation(structure, scale_factor=1.0)
