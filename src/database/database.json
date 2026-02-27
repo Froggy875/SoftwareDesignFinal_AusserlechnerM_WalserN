@@ -1,1 +1,1 @@
-{"inputdata": {}}
+{"inputdata": {"2": {"project_type": "Rechteck", "length": 80, "width": 40, "created_date": "{TinyDate}:2026-02-27", "created_time": "{TinyTime}:16:31", "fixed_points": [[0, 39]], "roller_points": [[79, 39]], "vertical_roller_points": [], "force_points": [[38, 0]], "forces_data": {"38_0": [0.0, 0.1]}, "mode": "optimization_and_bending", "optimizer": "SIMP Optimizer", "optimizer_settings": {"target_mass_ratio": 0.4, "max_iterations": 40, "max_penalty": 3.0, "r_min": 1.5}}}}

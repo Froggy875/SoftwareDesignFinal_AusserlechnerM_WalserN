@@ -36,7 +36,7 @@ def save_input_to_table(project_type,length, width, mask=None):
     
     return calc_id
 
-def update_calculation_data(calc_id, fixed_points, roller_points, force_points, forces_data, mode=None, optimizer=None, optimizer_settings=None):
+def update_calculation_data(calc_id, fixed_points, roller_points, vertical_roller_points, force_points, forces_data, mode=None, optimizer=None, optimizer_settings=None):
     '''Aktualisiert einen bestehenden Datenbankeintrag mit den restlichen Nutzereingaben.'''
     
     db = DatabaseConnector()
@@ -45,6 +45,7 @@ def update_calculation_data(calc_id, fixed_points, roller_points, force_points, 
     update_data = {
         "fixed_points": fixed_points,
         "roller_points": roller_points,
+        "vertical_roller_points": vertical_roller_points,
         "force_points": force_points,
         "forces_data": forces_data,
         "mode": mode,

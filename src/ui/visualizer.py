@@ -8,7 +8,7 @@ def plot_deformation(structure, scale_factor=1.0, opt=None, opt_type_internal=No
     Wenn 'opt' und 'opt_type_internal' übergeben werden, werden wegoptimierte 
     Elemente (Dichte < 0.1) ausgeblendet.
     """
-    fig, ax = plt.subplots(figsize=(5, 3))
+    fig, ax = plt.subplots(figsize=(10, 5))
     
     active_nodes = set()
 
@@ -55,16 +55,19 @@ def plot_deformation(structure, scale_factor=1.0, opt=None, opt_type_internal=No
     # Wenn wir filtern, nehmen wir nur active_nodes. Sonst alle Knoten der Struktur.
     nodes_to_plot = active_nodes if opt is not None else structure.get_nodes()
 
+    # C) Knotenpunkte zeichnen
     for node_id in nodes_to_plot:
         node = structure.get_node(node_id)
         new_pos = node.pos + node.displacement * scale_factor
         
         # Farbe bestimmen
         color = 'blue'
-        if node.fixed[0] != node.fixed[1]: 
-            color = 'yellow'  # Rollenlager
-        elif any(node.fixed): 
+        if node.fixed == [True, True]:
             color = 'red'     # Festlager
+        elif node.fixed == [False, True]:
+            color = 'skyblue'  # Horizontales Loslager
+        elif node.fixed == [True, False]:
+            color = 'orange'  # Vertikales Loslager
         elif np.linalg.norm(node.force) > 0: 
             color = 'green'   # Kraft
             
@@ -72,12 +75,11 @@ def plot_deformation(structure, scale_factor=1.0, opt=None, opt_type_internal=No
 
     # D) Plot-Einstellungen
     ax.set_xlabel('X')
-    ax.set_ylabel('Y')
+    ax.set_ylabel('Z')
     
     # Titel dynamisch anpassen
     title_suffix = f" (Optimiert: {opt_type_internal})" if opt else ""
-    ax.set_title(f'Verformung{title_suffix} (Skalierung: {scale_factor}x)\nRot=Fest, Gelb=Los, Grün=Kraft')
-    
+    ax.set_title(f'Verformung{title_suffix} (Skalierung: {scale_factor}x)\nRot=Fest, Blau=Los(h), Orange=Los(v), Grün=Kraft')    
     ax.grid(True, alpha=0.3)
     ax.axis('equal')
     ax.invert_yaxis() 
@@ -90,7 +92,7 @@ def plot_optimization_step(structure, opt, opt_type_internal, iteration):
     Zeichnet den aktuellen Zustand der Optimierung (Dichten/Hardkill-Status).
     Gibt ein fertiges Matplotlib-Figure Objekt zurück.
     """
-    fig, ax = plt.subplots(figsize=(5, 3))
+    fig, ax = plt.subplots(figsize=(10, 5))
     visible_elements = 0
     
     segments = []
@@ -133,10 +135,15 @@ def plot_optimization_step(structure, opt, opt_type_internal, iteration):
     # 3. Knoten, Lager und Kräfte einzeichnen
     for node_id in list(structure.get_nodes()):
         node = structure.get_node(node_id)
-        if any(node.fixed):
-            ax.plot(node.pos[0], node.pos[1], 'r^', markersize=8, zorder=5) # zorder legt es in den Vordergrund
+        # Lager und Farben unterscheiden
+        if node.fixed == [True, True]:
+            ax.plot(node.pos[0], node.pos[1], marker='^', color='red', markersize=8, zorder=5)     # Festlager
+        elif node.fixed == [False, True]:
+            ax.plot(node.pos[0], node.pos[1], marker='^', color='skyblue', markersize=8, zorder=5)  # Horizontales Loslager
+        elif node.fixed == [True, False]:
+            ax.plot(node.pos[0], node.pos[1], marker='^', color='orange', markersize=8, zorder=5)  # Vertikales Loslager
         elif np.linalg.norm(node.force) > 0:
-            ax.plot(node.pos[0], node.pos[1], 'gv', markersize=8, zorder=5)
+            ax.plot(node.pos[0], node.pos[1], marker='v', color='green', markersize=8, zorder=5)   # Kraft
 
     # 4. Plot-Einstellungen
     ax.autoscale() 
@@ -144,7 +151,7 @@ def plot_optimization_step(structure, opt, opt_type_internal, iteration):
     ax.invert_yaxis()
     ax.set_title(f"Topologie: {opt_type_internal} | Iteration: {iteration+1} (Elemente: {visible_elements})")
     ax.set_xlabel("X")
-    ax.set_ylabel("Y")
+    ax.set_ylabel("Z")
     
     plt.tight_layout()
     

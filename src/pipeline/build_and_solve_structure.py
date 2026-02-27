@@ -43,6 +43,12 @@ def build_and_solve_structure(calc_data):
         node = get_node_by_coords(pt[0], pt[1])
         if node:
             node.fixed = [False, True]
+
+    # Vertikale Rollenlager setzen
+    for pt in calc_data.get('vertical_roller_points', []):
+        node = get_node_by_coords(pt[0], pt[1])
+        if node:
+            node.fixed = [True, False]
     
     # Kräfte setzen
     for pt_key, force_vector in forces_data.items():

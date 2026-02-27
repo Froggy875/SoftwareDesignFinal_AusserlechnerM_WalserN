@@ -147,7 +147,8 @@ def input_rectangle():
             # (für den Fall, dass der User vorher schon mal Daten eingegeben und dann zurück zum Start geklickt hat)
             st.session_state.force_points = []
             st.session_state.fixed_points = []
-            st.session_state.roller_points = [] 
+            st.session_state.roller_points = []
+            st.session_state.vertical_roller_points = []
             # Navigation zum nächsten Schritt
             st.session_state.app_step = "boundary_conditions"
             st.rerun()
@@ -176,6 +177,7 @@ def upload_image():
                 st.session_state.force_points = []
                 st.session_state.fixed_points = []
                 st.session_state.roller_points = [] 
+                st.session_state.vertical_roller_points = []
                 st.session_state.app_step = "boundary_conditions"
                 st.rerun()
     # --PROVISORIUM ENDE--
@@ -219,6 +221,7 @@ def draw_structure():
                 st.session_state.force_points = []
                 st.session_state.fixed_points = []
                 st.session_state.roller_points = [] 
+                st.session_state.vertical_roller_points = []
                 st.session_state.app_step = "boundary_conditions"
                 st.rerun()
     #--PROVISORIUM ENDE--
@@ -230,6 +233,7 @@ def boundary_conditions_ui():
     if 'force_points' not in st.session_state: st.session_state.force_points = []
     if 'fixed_points' not in st.session_state: st.session_state.fixed_points = []
     if 'roller_points' not in st.session_state: st.session_state.roller_points = []
+    if 'vertical_roller_points' not in st.session_state: st.session_state.vertical_roller_points = []
 
     length = st.session_state.beam_length
     width = st.session_state.beam_width
@@ -239,7 +243,7 @@ def boundary_conditions_ui():
 
     mode = st.radio(
         "Was möchtest du auf dem Gitter platzieren?",
-        options=["Kräfte (Rot)", "Festlager (Blau)", "Loslager (Grün)"],
+        options=["Kräfte (Rot)", "Festlager (Blau)", "Horizontales Loslager (Grün)", "Vertikales Loslager (Orange)"],
         horizontal=True
     )
     
@@ -249,9 +253,12 @@ def boundary_conditions_ui():
     elif mode == "Festlager (Blau)":
         active_list = st.session_state.fixed_points
         st.info("Klicke auf Punkte, die als Festlager dienen sollen.")
-    else:
+    elif mode == "Horizontales Loslager (Grün)":
         active_list = st.session_state.roller_points
-        st.info("Klicke auf Punkte, die als Loslager dienen sollen.")
+        st.info("Klicke auf Punkte, die als horizontale Loslager dienen sollen.")
+    else:
+        active_list = st.session_state.vertical_roller_points
+        st.info("Klicke auf Punkte, die als vertikale Loslager dienen sollen.")
 
     # Raster aufbauen
     x_range = np.arange(0, length)
@@ -287,6 +294,8 @@ def boundary_conditions_ui():
             point_colors.append('blue')
         elif coords in st.session_state.roller_points:
             point_colors.append('green')
+        elif coords in st.session_state.vertical_roller_points:
+            point_colors.append('orange')
         elif coords in st.session_state.force_points:
             point_colors.append('red')
         else:
@@ -405,6 +414,7 @@ def boundary_conditions_ui():
                 calc_id=st.session_state.current_calc_id,
                 fixed_points=st.session_state.fixed_points,
                 roller_points=st.session_state.roller_points,
+                vertical_roller_points=st.session_state.vertical_roller_points,
                 force_points=st.session_state.force_points,
                 forces_data=st.session_state.forces_data,
                 mode=st.session_state.mode
@@ -523,6 +533,7 @@ def select_optimizer():
             calc_id=st.session_state.current_calc_id,
             fixed_points=st.session_state.fixed_points,
             roller_points=st.session_state.roller_points,
+            vertical_roller_points=st.session_state.vertical_roller_points,
             force_points=st.session_state.force_points,
             forces_data=st.session_state.forces_data,
             mode=st.session_state.mode,
