@@ -560,7 +560,7 @@ def show_result_page():
         reset_optimization_state() 
         st.session_state.last_viewed_calc_id = current_calc_id
 
-    st.header("Rechenvorgang")
+    
 
     if "saved_structure" not in st.session_state or st.session_state.get("struct_calc_id") != current_calc_id:
         structure, calc_data = get_prepared_structure(current_calc_id)
@@ -575,11 +575,12 @@ def show_result_page():
         calc_data = st.session_state.saved_calc_data
         deformation = st.session_state.deformation_plot
 
-
-    opt1, opt2 = st.columns([2,1])
+    
+    st.header("Rechenvorgang")
+    opt1, opt2 = st.columns([2,1], vertical_alignment="bottom")
     with opt1:
-        #render_results_page(st.session_state.current_calc_id)
-        live_optimizer_ui(current_calc_id, structure, calc_data)
+        with st.container(border=True):
+            live_optimizer_ui(current_calc_id, structure, calc_data)
     with opt2:
         if st.button("💾 In Datenbank speichern"):
             db_repository.save_optimization_state(current_calc_id, st.session_state.json_ready_state, st.session_state.current_opt_type)
@@ -603,10 +604,12 @@ def show_result_page():
                     mime="image/gif"
                 )
     
-    def1, def2 = st.columns([2,1])
+    st.divider()
+    st.header("Verformung")
+    def1, def2 = st.columns([2,1], vertical_alignment="bottom")
     with def1:
-        st.header("Verformung")
-        st.pyplot(deformation, use_container_width=True)
+        with st.container(border=True):
+            st.pyplot(deformation, use_container_width=True)
     
     with def2:
         img_bytes = ImageExporter.get_image_bytes(deformation)
